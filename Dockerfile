@@ -15,9 +15,9 @@ COPY requirements.txt .
 # 安装依赖（请先创建requirements.txt）
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制并安装 ip138-master IP归属地查询工具
-COPY ip138-master/ ./ip138-master/
-RUN pip install --no-cache-dir ./ip138-master/
+# 复制并安装 ip138 IP归属地查询工具
+COPY ip138/ ./ip138/
+RUN pip install --no-cache-dir ./ip138/
 
 # 暴露Web服务器端口
 EXPOSE 5000
