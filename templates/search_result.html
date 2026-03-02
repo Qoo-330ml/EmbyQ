@@ -72,6 +72,31 @@
             padding: 30px;
             color: #666;
         }
+        .active-session {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196f3;
+        }
+        .active-session h3 {
+            color: #1976d2;
+            margin-top: 0;
+        }
+        .playing-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background-color: #4caf50;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
         /* 移动端适配 */
         @media (max-width: 768px) {
             body {
@@ -117,6 +142,35 @@
             <p>📊 禁用状态: {{ '🚫 已禁用' if user_info.get('Policy', {}).get('IsDisabled', False) else '✅ 正常' }}</p>
         </div>
         
+        <!-- 正在播放 -->
+        {% if active_sessions %}
+        <div class="active-session">
+            <h3><span class="playing-indicator"></span>▶️ 正在播放</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>🌐 IP地址</th>
+                        <th>📍 位置</th>
+                        <th>📱 设备</th>
+                        <th>💻 客户端</th>
+                        <th>🎬 播放内容</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for session in active_sessions %}
+                    <tr>
+                        <td>{{ session.ip_address }}</td>
+                        <td>{{ session.location }}</td>
+                        <td>{{ session.device }}</td>
+                        <td>{{ session.client }}</td>
+                        <td>{{ session.media }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
         <!-- 封禁信息 -->
         {% if ban_info %}
         <div class="ban-info">
@@ -136,26 +190,26 @@
                 <thead>
                     <tr>
                         <th>🌐 IP地址</th>
-                        <th>📱 设备</th>
+                        <th>� 位置</th>
+                        <th>� 设备</th>
                         <th>💻 客户端</th>
                         <th>🎬 播放内容</th>
                         <th>▶️ 开始时间</th>
                         <th>⏹️ 结束时间</th>
                         <th>⏱️ 时长(秒)</th>
-                        <th>📍 位置</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for record in playback_records %}
                     <tr>
                         <td>{{ record[1] }}</td>
+                        <td>{{ record[8] }}</td>
                         <td>{{ record[2] }}</td>
                         <td>{{ record[3] }}</td>
                         <td>{{ record[4] }}</td>
                         <td>{{ record[5] }}</td>
                         <td>{{ record[6] if record[6] else '▶️ 播放中' }}</td>
                         <td>{{ record[7] if record[7] else '-' }}</td>
-                        <td>{{ record[8] }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

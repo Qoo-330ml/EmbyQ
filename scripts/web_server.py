@@ -46,7 +46,9 @@ class WebServer:
         @self.app.route('/')
         def index():
             """首页 - 游客搜索页面"""
-            return render_template('index.html')
+            # 获取所有正在播放的会话
+            all_active_sessions = self._get_all_active_sessions()
+            return render_template('index.html', all_active_sessions=all_active_sessions)
         
         @self.app.route('/search', methods=['POST'])
         def search():
@@ -68,13 +70,16 @@ class WebServer:
             ban_info = self._get_user_ban_info(user_id=user_id, username=username)
             # 查询用户基本信息
             user_info = self.emby_client.get_user_info(user_id)
-            
-            return render_template('search_result.html', 
+            # 查询用户当前活跃会话（正在播放）
+            active_sessions = self._get_user_active_sessions(user_id)
+
+            return render_template('search_result.html',
                                  user_id=user_id,
                                  username=username,
                                  user_info=user_info,
                                  playback_records=playback_records,
-                                 ban_info=ban_info)
+                                 ban_info=ban_info,
+                                 active_sessions=active_sessions)
         
         @self.app.route('/login', methods=['GET', 'POST'])
         def login():
@@ -217,7 +222,88 @@ class WebServer:
         except Exception as e:
             print(f"获取播放记录失败: {e}")
             return []
-    
+
+    def _get_user_active_sessions(self, user_id):
+        """获取用户当前正在播放的活跃会话"""
+        try:
+            all_sessions = self.emby_client.get_active_sessions()
+            user_sessions = []
+            for session_id, session in all_sessions.items():
+                if session.get('UserId') == user_id:
+                    media_item = session.get('NowPlayingItem', {})
+                    media_name = self.emby_client.parse_media_info(media_item)
+                    ip_address = session.get('RemoteEndPoint', '未知IP').split(':')[0]
+                    location = self._get_location(ip_address)
+                    user_sessions.append({
+                        'session_id': session_id,
+                        'ip_address': ip_address,
+                        'location': location,
+                        'device': session.get('DeviceName', '未知设备'),
+                        'client': session.get('Client', '未知客户端'),
+                        'media': media_name
+                    })
+            return user_sessions
+        except Exception as e:
+            print(f"获取用户活跃会话失败: {e}")
+            return []
+
+    def _get_all_active_sessions(self):
+        """获取所有正在播放的活跃会话"""
+        try:
+            all_sessions = self.emby_client.get_active_sessions()
+            active_sessions = []
+            for session_id, session in all_sessions.items():
+                media_item = session.get('NowPlayingItem', {})
+                media_name = self.emby_client.parse_media_info(media_item)
+                ip_address = session.get('RemoteEndPoint', '未知IP').split(':')[0]
+                location = self._get_location(ip_address)
+                active_sessions.append({
+                    'session_id': session_id,
+                    'username': session.get('UserName', '未知用户'),
+                    'ip_address': ip_address,
+                    'location': location,
+                    'device': session.get('DeviceName', '未知设备'),
+                    'client': session.get('Client', '未知客户端'),
+                    'media': media_name
+                })
+            return active_sessions
+        except Exception as e:
+            print(f"获取所有活跃会话失败: {e}")
+            return []
+
+    def _get_location(self, ip_address):
+        """解析地理位置、运营商和IP类型"""
+        if not ip_address:
+            return "未知位置"
+
+        # 使用 ip138 包查询 IP 信息
+        try:
+            from ip138.ip138 import ip138
+            result = ip138(ip_address)
+
+            # 检查是否获取到归属地信息
+            if "归属地" in result:
+                location = result["归属地"]
+                isp = result.get("运营商", "")
+                ip_type = result.get("iP类型", "")
+
+                # 组合信息：归属地 | 运营商 | IP类型
+                info_parts = [location]
+                if isp:
+                    info_parts.append(isp)
+                if ip_type:
+                    info_parts.append(ip_type)
+
+                return " | ".join(info_parts)
+            elif "提示" in result:
+                # 可能是公共DNS，返回提示信息
+                return result.get("页面标题", "未知位置")
+            else:
+                return "未知区域"
+        except Exception as e:
+            print(f"📍 解析 {ip_address} 失败: {str(e)}")
+            return "解析失败"
+
     def _get_user_ban_info(self, user_id=None, username=None):
         """获取用户封禁信息"""
         try:

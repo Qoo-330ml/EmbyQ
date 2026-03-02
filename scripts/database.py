@@ -83,13 +83,13 @@ class DatabaseManager:
             conn.commit()
     
     def get_user_playback_records(self, user_id, limit=10):
-        """获取用户最近的播放记录"""
+        """获取用户最近的播放记录（只返回已结束的会话）"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute('''
-                SELECT session_id, ip_address, device_name, client_type, media_name, 
+                SELECT session_id, ip_address, device_name, client_type, media_name,
                        start_time, end_time, duration, location
                 FROM playback_history
-                WHERE user_id = ?
+                WHERE user_id = ? AND end_time IS NOT NULL
                 ORDER BY start_time DESC
                 LIMIT ?
             ''', (user_id, limit))
@@ -108,13 +108,13 @@ class DatabaseManager:
             return cursor.fetchone()
     
     def get_playback_records_by_username(self, username, limit=10):
-        """通过用户名获取最近的播放记录"""
+        """通过用户名获取最近的播放记录（只返回已结束的会话）"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute('''
-                SELECT session_id, ip_address, device_name, client_type, media_name, 
+                SELECT session_id, ip_address, device_name, client_type, media_name,
                        start_time, end_time, duration, location
                 FROM playback_history
-                WHERE username = ?
+                WHERE username = ? AND end_time IS NOT NULL
                 ORDER BY start_time DESC
                 LIMIT ?
             ''', (username, limit))
