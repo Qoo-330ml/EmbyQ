@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>查询结果 - Emby播放记录</title>
+    <title>📊 查询结果 - Emby播放记录</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -72,47 +72,77 @@
             padding: 30px;
             color: #666;
         }
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 20px;
+            }
+            .result-container {
+                padding: 15px;
+            }
+            .user-info, .ban-info {
+                padding: 10px;
+            }
+            .user-info h3, .ban-info h3, .playback-records h3 {
+                font-size: 16px;
+            }
+            .playback-records {
+                overflow-x: auto;
+            }
+            table {
+                font-size: 12px;
+            }
+            th, td {
+                padding: 6px;
+            }
+            .back-link a {
+                font-size: 14px;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Emby播放记录查询结果</h1>
+    <h1>📊 Emby播放记录查询结果</h1>
     
     <div class="result-container">
         <!-- 用户基本信息 -->
         <div class="user-info">
-            <h3>用户信息</h3>
-            <p>用户名: {{ username }}</p>
-            <p>用户ID: {{ user_id }}</p>
-            <p>显示名称: {{ user_info.get('DisplayName', '未知') }}</p>
-            <p>禁用状态: {{ '已禁用' if user_info.get('Policy', {}).get('IsDisabled', False) else '正常' }}</p>
+            <h3>👤 用户信息</h3>
+            <p>👤 用户名: {{ username }}</p>
+            <p>🆔 用户ID: {{ user_id }}</p>
+            <p>🏷️ 显示名称: {{ user_info.get('DisplayName', '未知') }}</p>
+            <p>📊 禁用状态: {{ '🚫 已禁用' if user_info.get('Policy', {}).get('IsDisabled', False) else '✅ 正常' }}</p>
         </div>
         
         <!-- 封禁信息 -->
         {% if ban_info %}
         <div class="ban-info">
-            <h3>封禁信息</h3>
-            <p>封禁时间: {{ ban_info[0] }}</p>
-            <p>触发IP: {{ ban_info[1] }}</p>
-            <p>并发会话数: {{ ban_info[2] }}</p>
-            <p>封禁原因: 检测到异常登录行为</p>
+            <h3>🚫 封禁信息</h3>
+            <p>⏰ 封禁时间: {{ ban_info[0] }}</p>
+            <p>🌐 触发IP: {{ ban_info[1] }}</p>
+            <p>📈 并发会话数: {{ ban_info[2] }}</p>
+            <p>⚠️ 封禁原因: 检测到异常登录行为</p>
         </div>
         {% endif %}
         
         <!-- 播放记录 -->
         <div class="playback-records">
-            <h3>最近播放记录</h3>
+            <h3>🎬 最近播放记录</h3>
             {% if playback_records %}
             <table>
                 <thead>
                     <tr>
-                        <th>IP地址</th>
-                        <th>设备</th>
-                        <th>客户端</th>
-                        <th>播放内容</th>
-                        <th>开始时间</th>
-                        <th>结束时间</th>
-                        <th>时长(秒)</th>
-                        <th>位置</th>
+                        <th>🌐 IP地址</th>
+                        <th>📱 设备</th>
+                        <th>💻 客户端</th>
+                        <th>🎬 播放内容</th>
+                        <th>▶️ 开始时间</th>
+                        <th>⏹️ 结束时间</th>
+                        <th>⏱️ 时长(秒)</th>
+                        <th>📍 位置</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -123,7 +153,7 @@
                         <td>{{ record[3] }}</td>
                         <td>{{ record[4] }}</td>
                         <td>{{ record[5] }}</td>
-                        <td>{{ record[6] if record[6] else '播放中' }}</td>
+                        <td>{{ record[6] if record[6] else '▶️ 播放中' }}</td>
                         <td>{{ record[7] if record[7] else '-' }}</td>
                         <td>{{ record[8] }}</td>
                     </tr>
@@ -131,12 +161,12 @@
                 </tbody>
             </table>
             {% else %}
-            <div class="empty">没有找到播放记录</div>
+            <div class="empty">📭 没有找到播放记录</div>
             {% endif %}
         </div>
         
         <div class="back-link">
-            <a href="/">返回首页</a>
+            <a href="/">🏠 返回首页</a>
         </div>
     </div>
 </body>

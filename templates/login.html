@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>管理员登录 - EmbyIPLimit</title>
+    <title>🔐 管理员登录 - EmbyIPLimit</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -30,6 +30,7 @@
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 16px;
+            box-sizing: border-box;
         }
         .login-form button {
             width: 100%;
@@ -40,6 +41,7 @@
             border-radius: 4px;
             font-size: 16px;
             cursor: pointer;
+            box-sizing: border-box;
         }
         .login-form button:hover {
             background-color: #0b7dda;
@@ -63,10 +65,29 @@
             border-radius: 4px;
             border-left: 4px solid #d8000c;
         }
+        /* 移动端适配 */
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+                max-width: 100%;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            .login-form {
+                padding: 20px;
+                margin-top: 20px;
+            }
+            .login-form input,
+            .login-form button {
+                font-size: 16px;
+                padding: 14px;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>管理员登录</h1>
+    <h1>🔐 管理员登录</h1>
     
     <div class="login-form">
         {% with messages = get_flashed_messages() %}
@@ -78,17 +99,17 @@
         {% endwith %}
         
         <form action="/login" method="post">
-            <label for="username">用户名：</label>
+            <label for="username">👤 用户名：</label>
             <input type="text" id="username" name="username" required>
             
-            <label for="password">密码：</label>
+            <label for="password">🔑 密码：</label>
             <input type="password" id="password" name="password" required>
             
-            <button type="submit">登录</button>
+            <button type="submit">🚀 登录</button>
         </form>
         
         <div class="back-link">
-            <a href="/">返回首页</a>
+            <a href="/">🏠 返回首页</a>
         </div>
     </div>
 </body>

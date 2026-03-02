@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EmbyIPLimit管理员控制台 - EmbyIPLimit</title>
+    <title>🎛️ EmbyIPLimit管理员控制台 - EmbyIPLimit</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -121,16 +121,51 @@
         form {
             display: inline;
         }
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 22px;
+            }
+            .admin-header {
+                flex-direction: column;
+                gap: 10px;
+            }
+            .admin-header h2 {
+                font-size: 18px;
+                margin: 0;
+            }
+            .user-table {
+                padding: 10px;
+                overflow-x: auto;
+            }
+            table {
+                font-size: 14px;
+            }
+            th, td {
+                padding: 8px;
+            }
+            .btn {
+                padding: 4px 8px;
+                font-size: 12px;
+            }
+            .config-btn, .logout-btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>管理员控制台</h1>
+    <h1>🎛️ 管理员控制台</h1>
     
     <div class="admin-header">
-        <h2>用户管理</h2>
+        <h2>👥 用户管理</h2>
         <div>
-            <a href="/admin/config" class="config-btn">配置管理</a>
-            <a href="/logout" class="logout-btn">退出登录</a>
+            <a href="/admin/config" class="config-btn">⚙️ 配置管理</a>
+            <a href="/logout" class="logout-btn">🚪 退出登录</a>
         </div>
     </div>
     
@@ -147,10 +182,10 @@
         <table>
             <thead>
                 <tr>
-                    <th>用户ID</th>
-                    <th>用户名</th>
-                    <th>状态</th>
-                    <th>操作</th>
+                    <th>🆔 用户ID</th>
+                    <th>👤 用户名</th>
+                    <th>📊 状态</th>
+                    <th>⚡ 操作</th>
                 </tr>
             </thead>
             <tbody>
@@ -160,7 +195,7 @@
                     <td>{{ user.name }}</td>
                     <td>
                         <span class="status {{ 'disabled' if user.is_disabled else 'enabled' }}">
-                            {{ '已禁用' if user.is_disabled else '正常' }}
+                            {{ '🚫 已禁用' if user.is_disabled else '✅ 正常' }}
                         </span>
                     </td>
                     <td>
@@ -168,13 +203,13 @@
                         <form action="/admin/toggle_user" method="post">
                             <input type="hidden" name="user_id" value="{{ user.id }}">
                             <input type="hidden" name="action" value="unban">
-                            <button type="submit" class="btn unban-btn">解封</button>
+                            <button type="submit" class="btn unban-btn">🔓 解封</button>
                         </form>
                         {% else %}
                         <form action="/admin/toggle_user" method="post">
                             <input type="hidden" name="user_id" value="{{ user.id }}">
                             <input type="hidden" name="action" value="ban">
-                            <button type="submit" class="btn ban-btn">封禁</button>
+                            <button type="submit" class="btn ban-btn">🔒 封禁</button>
                         </form>
                         {% endif %}
                     </td>
@@ -183,7 +218,7 @@
             </tbody>
         </table>
         {% else %}
-        <div class="empty">没有找到用户</div>
+        <div class="empty">📭 没有找到用户</div>
         {% endif %}
     </div>
 </body>

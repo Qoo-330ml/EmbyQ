@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Emby播放记录查询</title>
+    <title>🎬 Emby播放记录查询</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -30,6 +30,7 @@
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 16px;
+            box-sizing: border-box;
         }
         .search-form button {
             width: 100%;
@@ -40,6 +41,7 @@
             border-radius: 4px;
             font-size: 16px;
             cursor: pointer;
+            box-sizing: border-box;
         }
         .search-form button:hover {
             background-color: #45a049;
@@ -63,10 +65,28 @@
             border-radius: 4px;
             border-left: 4px solid #d8000c;
         }
+        /* 移动端适配 */
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            .search-form {
+                padding: 20px;
+                margin-top: 20px;
+            }
+            .search-form input,
+            .search-form button {
+                font-size: 16px;
+                padding: 14px;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Emby播放记录查询</h1>
+    <h1>🎬 Emby播放记录查询</h1>
     
     {% with messages = get_flashed_messages() %}
         {% if messages %}
@@ -78,12 +98,12 @@
     
     <div class="search-form">
         <form action="/search" method="post">
-            <label for="username">输入您的Emby用户名：</label>
+            <label for="username">👤 输入您的Emby用户名：</label>
             <input type="text" id="username" name="username" placeholder="例如：admin" required>
-            <button type="submit">查询播放记录</button>
+            <button type="submit">🔍 查询播放记录</button>
         </form>
         <div class="login-link">
-            <a href="/login">管理员登录</a>
+            <a href="/login">🔐 管理员登录</a>
         </div>
     </div>
 </body>
