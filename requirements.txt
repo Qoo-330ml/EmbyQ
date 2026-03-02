@@ -3,3 +3,4 @@ Flask
 pyyaml
 Werkzeug
 flask_login
+waitress
