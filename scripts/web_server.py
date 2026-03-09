@@ -620,12 +620,22 @@ class WebServer:
             return []
 
     def _get_all_users_with_expiry(self):
-        """获取所有用户列表（包含到期时间和永不过期信息）"""
+        """获取所有用户列表（包含到期时间、永不过期信息和用户组）"""
         try:
             from datetime import datetime
 
             # 从Emby获取所有用户
             users = self.emby_client.get_users()
+
+            # 获取所有用户组信息
+            user_groups = self.db_manager.get_all_user_groups()
+            # 构建用户ID到组名的映射
+            user_group_map = {}
+            for group in user_groups:
+                for member_id in group.get('members', []):
+                    if member_id not in user_group_map:
+                        user_group_map[member_id] = []
+                    user_group_map[member_id].append(group['name'])
 
             users_with_status = []
             for user in users:
@@ -647,13 +657,17 @@ class WebServer:
                     except:
                         pass
 
+                # 获取用户所属的组
+                user_groups_list = user_group_map.get(user_id, [])
+
                 users_with_status.append({
                     'id': user_id,
                     'name': user.get('Name'),
                     'is_disabled': is_disabled,
                     'expiry_date': expiry_date,
                     'is_expired': is_expired,
-                    'never_expire': never_expire
+                    'never_expire': never_expire,
+                    'groups': user_groups_list
                 })
 
             return users_with_status

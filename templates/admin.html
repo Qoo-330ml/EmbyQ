@@ -486,6 +486,22 @@
         .batch-btn.never-expire:hover {
             background-color: #218838;
         }
+        /* 用户组标签样式 */
+        .user-group-tags {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        .user-group-tag {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            white-space: nowrap;
+        }
         /* 用户组管理模态框 */
         .group-manage-modal .modal-content {
             max-width: 600px;
@@ -674,7 +690,16 @@
                 {% for user in users %}
                 <tr>
                     <td class="checkbox-cell user-checkbox-cell" style="display: none;"><input type="checkbox" class="user-checkbox" name="user_ids" value="{{ user.id }}" data-username="{{ user.name }}" onclick="updateSelectedCount()"></td>
-                    <td><a href="/search?username={{ user.name }}" style="color: #2196F3; text-decoration: none; font-weight: 500;">{{ user.name }}</a></td>
+                    <td>
+                        <a href="/search?username={{ user.name }}" style="color: #2196F3; text-decoration: none; font-weight: 500;">{{ user.name }}</a>
+                        {% if user.groups %}
+                        <span class="user-group-tags">
+                            {% for group in user.groups %}
+                            <span class="user-group-tag">{{ group }}</span>
+                            {% endfor %}
+                        </span>
+                        {% endif %}
+                    </td>
                     <td>
                         <div class="expiry-display">
                             <span class="expiry-date {{ 'expired' if user.is_expired else ('never-expire' if user.never_expire else ('set' if user.expiry_date else 'not-set')) }}">
@@ -687,7 +712,7 @@
                                     {% endif %}
                                 {% endif %}
                             </span>
-                            <button class="settings-btn" onclick="openExpiryModal('{{ user.id }}', '{{ user.name }}', '{{ user.expiry_date or '' }}', {{ 'true' if user.never_expire else 'false' }})">
+                            <button class="settings-btn" onclick="openExpiryModal('{{ user.id }}', '{{ user.name }}', '{{ user.expiry_date or '' }}', {{ 'true'|safe if user.never_expire else 'false'|safe }})">
                                 ⚙️
                             </button>
                         </div>
