@@ -57,7 +57,7 @@ services:
 
 #### 1. 克隆项目
 ```bash
-git clone <repository-url>
+git clone https://github.com/Qoo-330ml/EmbyIPLimit.git
 cd Emby-IPLimit-main
 ```
 
