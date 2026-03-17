@@ -12,6 +12,12 @@ RUN npm run build
 FROM python:3.12-alpine
 WORKDIR /app
 
+# Timezone (UTC+8)
+ENV TZ=Asia/Shanghai
+RUN apk add --no-cache tzdata \
+    && cp /usr/share/zoneinfo/${TZ} /etc/localtime \
+    && echo "${TZ}" > /etc/timezone
+
 # Python deps
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
