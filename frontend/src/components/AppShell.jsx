@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Moon, Sun } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { apiRequest } from '@/types/api'
 
 const navItems = [
   { to: '/', label: '首页' },
@@ -17,6 +18,7 @@ const adminSubNav = [
 
 export default function AppShell() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [theme, setTheme] = useState('light')
 
   useEffect(() => {
@@ -31,6 +33,15 @@ export default function AppShell() {
     setTheme(next)
     localStorage.setItem('emby-ui-theme', next)
     document.documentElement.classList.toggle('dark', next === 'dark')
+  }
+
+  const logout = async () => {
+    try {
+      await apiRequest('/auth/logout', { method: 'POST' })
+    } catch (e) {
+      // ignore
+    }
+    navigate('/login')
   }
 
   return (
@@ -55,9 +66,16 @@ export default function AppShell() {
               </NavLink>
             ))}
           </nav>
-          <Button size='icon' variant='outline' onClick={toggleTheme} title='切换主题'>
-            {theme === 'dark' ? <Sun className='h-4 w-4' /> : <Moon className='h-4 w-4' />}
-          </Button>
+          <div className='flex items-center gap-2'>
+            {location.pathname.startsWith('/admin') ? (
+              <Button size='sm' variant='destructive' onClick={logout}>
+                退出
+              </Button>
+            ) : null}
+            <Button size='icon' variant='outline' onClick={toggleTheme} title='切换主题'>
+              {theme === 'dark' ? <Sun className='h-4 w-4' /> : <Moon className='h-4 w-4' />}
+            </Button>
+          </div>
         </div>
         <div className='mx-auto flex max-w-7xl gap-2 px-4 pb-3 md:hidden'>
           {navItems.map((item) => (

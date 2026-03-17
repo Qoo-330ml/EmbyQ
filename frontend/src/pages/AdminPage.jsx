@@ -141,11 +141,6 @@ export default function AdminPage() {
     await loadUsers()
   }
 
-  const logout = async () => {
-    await apiRequest('/auth/logout', { method: 'POST' })
-    navigate('/login')
-  }
-
   return (
     <div className='mx-auto max-w-7xl space-y-6 p-4 pb-8 md:p-8'>
       <div className='flex flex-wrap items-center justify-between gap-2'>
@@ -159,9 +154,6 @@ export default function AdminPage() {
           </Button>
           <Button variant='outline' onClick={() => navigate('/admin/groups')}>
             用户组
-          </Button>
-          <Button variant='destructive' onClick={logout}>
-            退出
           </Button>
         </div>
       </div>
