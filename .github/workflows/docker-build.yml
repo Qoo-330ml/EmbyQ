@@ -7,12 +7,16 @@ on:
       - 'README.md'
   workflow_dispatch:
 
+env:
+  # Opt in to Node 24 runtime for JavaScript actions (GitHub Actions Node20 deprecation)
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -28,7 +32,7 @@ jobs:
         run: echo "DATE=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
       - name: Build and push multi-arch Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
