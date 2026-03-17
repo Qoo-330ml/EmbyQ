@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -11,6 +12,7 @@ export default function ConfigPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const navigate = useNavigate()
 
   useEffect(() => {
     const load = async () => {
@@ -54,6 +56,11 @@ export default function ConfigPage() {
     update(['security', 'whitelist'], current)
   }
 
+  const logout = async () => {
+    await apiRequest('/auth/logout', { method: 'POST' })
+    navigate('/login')
+  }
+
   const onSave = async () => {
     setSaving(true)
     setNotice('')
@@ -84,8 +91,22 @@ export default function ConfigPage() {
 
   return (
     <div className='mx-auto max-w-6xl space-y-6 p-4 pb-8 md:p-8'>
-      <div className='flex items-center justify-between'>
+      <div className='flex flex-wrap items-center justify-between gap-2'>
         <h1 className='text-2xl font-bold'>配置管理</h1>
+        <div className='flex flex-wrap items-center gap-2'>
+          <Button variant='outline' onClick={() => navigate('/admin/users')}>
+            用户
+          </Button>
+          <Button variant='outline' onClick={() => navigate('/admin/config')}>
+            配置
+          </Button>
+          <Button variant='outline' onClick={() => navigate('/admin/groups')}>
+            用户组
+          </Button>
+          <Button variant='destructive' onClick={logout}>
+            退出
+          </Button>
+        </div>
       </div>
 
       <Card>
