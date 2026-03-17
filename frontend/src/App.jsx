@@ -14,12 +14,12 @@ export default function App() {
       <Routes>
         <Route path='/login' element={<LoginPage />} />
 
-        <Route element={<AppShell />}>
-          <Route path='/' element={<HomePage />} />
-          <Route path='/search' element={<SearchPage />} />
-          <Route path='/admin' element={<AdminPage />} />
-          <Route path='/admin/config' element={<ConfigPage />} />
-          <Route path='/admin/groups' element={<GroupsPage />} />
+        <Route path='/' element={<AppShell />}>
+          <Route index element={<HomePage />} />
+          <Route path='search' element={<SearchPage />} />
+          <Route path='admin' element={<AdminPage />} />
+          <Route path='admin/config' element={<ConfigPage />} />
+          <Route path='admin/groups' element={<GroupsPage />} />
         </Route>
 
         <Route path='*' element={<Navigate to='/' replace />} />
