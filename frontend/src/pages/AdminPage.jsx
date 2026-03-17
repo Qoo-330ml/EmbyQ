@@ -148,16 +148,8 @@ export default function AdminPage() {
 
   return (
     <div className='mx-auto max-w-7xl space-y-6 p-4 pb-8 md:p-8'>
-      <div className='flex flex-wrap items-center justify-end gap-2'>
-        <Button variant='outline' onClick={() => navigate('/admin/users')}>
-          用户
-        </Button>
-        <Button variant='outline' onClick={() => navigate('/admin/config')}>
-          配置
-        </Button>
-        <Button variant='outline' onClick={() => navigate('/admin/groups')}>
-          用户组
-        </Button>
+      <div className='flex flex-wrap items-center justify-between gap-2'>
+        <h1 className='text-2xl font-bold'>用户管理</h1>
         <Button variant='destructive' onClick={logout}>
           退出
         </Button>
