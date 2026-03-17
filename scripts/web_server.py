@@ -23,7 +23,8 @@ class WebServer:
         self.frontend_dist = os.path.join(base_dir, 'frontend', 'dist')
         self.frontend_assets = os.path.join(self.frontend_dist, 'assets')
 
-        self.app = Flask(__name__, static_folder=self.frontend_dist, static_url_path='')
+        # 禁用 Flask 默认 static 根路由，避免与 SPA 深链接路由冲突（如 /admin/config 刷新 404）
+        self.app = Flask(__name__, static_folder=None)
         self.app.secret_key = 'emby_iplimit_secret_key'
 
         self.login_manager = LoginManager()
