@@ -71,28 +71,18 @@ export default function SearchPage() {
             <CardTitle>正在播放</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>IP</TableHead>
-                  <TableHead>位置</TableHead>
-                  <TableHead>设备</TableHead>
-                  <TableHead>客户端</TableHead>
-                  <TableHead>内容</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {active_sessions.map((s) => (
-                  <TableRow key={s.session_id}>
-                    <TableCell>{s.ip_address}</TableCell>
-                    <TableCell>{s.location}</TableCell>
-                    <TableCell>{s.device}</TableCell>
-                    <TableCell>{s.client}</TableCell>
-                    <TableCell>{s.media}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className='space-y-2'>
+              {active_sessions.map((s) => (
+                <div key={s.session_id} className='rounded-lg border p-3 text-sm'>
+                  <div className='font-medium'>{s.media}</div>
+                  <div className='mt-1 text-muted-foreground'>
+                    <div>设备：{s.device} · {s.client}</div>
+                    <div>IP：{s.ip_address}</div>
+                    <div>位置：{s.location}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       ) : null}
