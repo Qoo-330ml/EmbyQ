@@ -17,9 +17,10 @@ ENV TZ=Asia/Shanghai \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git tzdata \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git tzdata \
     && ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime \
     && echo ${TZ} > /etc/timezone \
+    && dpkg-reconfigure -f noninteractive tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Python deps
