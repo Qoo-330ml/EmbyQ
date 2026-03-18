@@ -31,7 +31,7 @@ class LocationService:
             parts.append(street.strip())
 
         left = "·".join(parts) if parts else "未知位置"
-        return f"{left}-{isp.strip()}" if isp else left
+        return f"{left} | {isp.strip()}" if isp else left
 
     def _query_hiofd(self, ip_address: str) -> dict[str, Any]:
         if not os.path.exists(self.hiofd_script):
