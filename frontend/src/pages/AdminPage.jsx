@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import UserIdentity from '@/components/UserIdentity'
 import { apiRequest } from '@/types/api'
 import { getUserStatus } from '@/types/format'
 
@@ -256,17 +257,8 @@ export default function AdminPage() {
                         className='text-left text-primary hover:underline'
                         onClick={() => navigate(`/search?username=${encodeURIComponent(u.name)}`)}
                       >
-                        {u.name}
+                        <UserIdentity name={u.name} groups={u.groups || []} />
                       </button>
-                      {u.groups?.length ? (
-                        <div className='mt-1 flex flex-wrap gap-1'>
-                          {u.groups.map((g) => (
-                            <Badge key={`${u.id}-${g}`} variant='secondary'>
-                              {g}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : null}
                     </TableCell>
                     <TableCell>{u.never_expire ? '永不过期' : u.expiry_date || '未设置'}</TableCell>
                     <TableCell>

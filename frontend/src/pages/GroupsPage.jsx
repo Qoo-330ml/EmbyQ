@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import UserIdentity from '@/components/UserIdentity'
 import { apiRequest } from '@/types/api'
 
 export default function GroupsPage() {
@@ -216,7 +217,7 @@ export default function GroupsPage() {
                         .filter((u) => !(activeGroup.members || []).includes(u.id))
                         .map((u) => (
                           <option key={u.id} value={u.id}>
-                            {u.name}
+                            {u.name}{u.groups?.length ? ` (${u.groups.join(' / ')})` : ''}
                           </option>
                         ))}
                     </select>
@@ -247,7 +248,7 @@ export default function GroupsPage() {
                               setSelectedMembers((prev) => ({ ...prev, [u.id]: e.target.checked }))
                             }
                           />
-                          <span>{u.name}</span>
+                          <UserIdentity name={u.name} groups={u.groups || []} />
                         </label>
                       ))}
                     {!users
@@ -288,7 +289,7 @@ export default function GroupsPage() {
                     const u = users.find((x) => x.id === uid)
                     return (
                       <div key={uid} className='flex items-center justify-between rounded border p-2'>
-                        <span>{u?.name || uid}</span>
+                        <UserIdentity name={u?.name || uid} groups={u?.groups || []} />
                         <Button size='sm' variant='destructive' onClick={() => removeMember(uid)}>
                           移除
                         </Button>

@@ -84,6 +84,10 @@ class WebServer:
         @self.app.get('/api/public/active-sessions')
         def public_active_sessions():
             sessions = self._get_all_active_sessions()
+            groups_map = self._get_user_groups_map()
+            for s in sessions:
+                user_id = s.get('user_id')
+                s['groups'] = groups_map.get(user_id, []) if user_id else []
             return jsonify({'sessions': sessions})
 
         @self.app.get('/api/public/search')
@@ -102,11 +106,13 @@ class WebServer:
             ban_info = self._serialize_ban_info(self._get_user_ban_info(user_id=user_id, username=username))
             user_info = self.emby_client.get_user_info(user_id) or {}
             active_sessions = self._get_user_active_sessions(user_id)
+            user_groups = self._get_user_groups_map().get(user_id, [])
 
             return jsonify({
                 'user_id': user_id,
                 'username': username,
                 'user_info': user_info,
+                'user_groups': user_groups,
                 'playback_records': playback_records,
                 'ban_info': ban_info,
                 'active_sessions': active_sessions,
@@ -366,6 +372,18 @@ class WebServer:
                 'frontend_dist': self.frontend_dist,
             }), 503
 
+    def _get_user_groups_map(self):
+        """构建用户ID -> 组名列表映射"""
+        mapping = {}
+        try:
+            for group in self.db_manager.get_all_user_groups():
+                group_name = group.get('name')
+                for uid in group.get('members', []):
+                    mapping.setdefault(uid, []).append(group_name)
+        except Exception:
+            return {}
+        return mapping
+
     def _serialize_playback_records(self, rows: list[Any]):
         records = []
         for row in rows or []:
@@ -437,6 +455,7 @@ class WebServer:
                 location = self._get_location(ip_address)
                 active_sessions.append({
                     'session_id': session_id,
+                    'user_id': session.get('UserId'),
                     'username': session.get('UserName', '未知用户'),
                     'ip_address': ip_address,
                     'location': location,

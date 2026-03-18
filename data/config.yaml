@@ -1,30 +1,31 @@
 database:
-  name: emby_playback.db # 默认数据库，不改动
+  name: emby_playback.db
 emby:
-  server_url: https://emby.example.com
-  api_key: 12345678
+  api_key: 97bf7a445d9b4eeda6c2a33838435f3c
+  server_url: http://192.168.10.50:8096
+monitor:
   check_interval: 10
 notifications:
-  alert_threshold: 2 # 播放窗口数(需不同IP），达到这个值即禁用
+  alert_threshold: 2
   enable_alerts: true
 security:
   auto_disable: true
-  whitelist: # 白名单内的用户不会被禁用
-  - "admin"
-  - "user1"
-  - "user2"
-webhook:
-  enabled: false # 是否启用webhook通知
-  url: # webhook地址
-  timeout: 10 # 请求超时时间（秒）
-  retry_attempts: 3 # 重试次数
-  # 自定义请求体配置 - 用户可以根据自己的webhook服务器要求自定义
-  body:
-    title: "Emby用户封禁通知"  # 消息标题，根据你的webhook服务要求设置
-    content: "用户 {username} 在 {location} 使用 {ip_address} ({ip_type}) 登录，检测到 {session_count} 个并发会话，已自动封禁。"
-
-# Web服务器配置
+  whitelist:
+  - pdz
+  - nanzi
 web:
-  admin_username: admin # 管理员用户名
-  admin_password: admin123 # 管理员密码（生产环境请修改）
-
+  admin_password: Hasaki0516
+  admin_username: pdz
+webhook:
+  body:
+    content: 用户 {username} 在 {location} 使用 {ip_address} ({ip_type}) 登录，检测到 {session_count}
+      个并发会话，已自动封禁。
+    route_id: route_iw83
+    title: Emby用户封禁通知
+  content_template: 用户 {username} 在 {location} 使用 {ip_address} ({ip_type}) 登录，检测到
+    {session_count} 个并发会话，已自动封禁。
+  enabled: true
+  retry_attempts: 3
+  timeout: 10
+  title: Emby用户封禁通知
+  url: https://notifyhub.pdzhou.top/api/service/notify

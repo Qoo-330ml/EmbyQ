@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search } from 'lucide-react'
 
@@ -6,33 +6,56 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import UserIdentity from '@/components/UserIdentity'
 import { apiRequest } from '@/types/api'
 
 export default function HomePage() {
   const [username, setUsername] = useState('')
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(false)
+  const fingerprintRef = useRef('')
   const navigate = useNavigate()
 
   useEffect(() => {
     let active = true
     let timer = null
 
-    const load = async () => {
+    const load = async (showLoading = false) => {
       if (!active) return
-      setLoading(true)
+      if (showLoading) setLoading(true)
       try {
         const data = await apiRequest('/public/active-sessions')
-        if (active) setSessions(data.sessions || [])
+        const next = (data.sessions || []).slice().sort((a, b) => String(a.session_id).localeCompare(String(b.session_id)))
+        const fingerprint = JSON.stringify(
+          next.map((s) => ({
+            session_id: s.session_id,
+            user_id: s.user_id,
+            username: s.username,
+            groups: s.groups,
+            ip_address: s.ip_address,
+            location: s.location,
+            device: s.device,
+            client: s.client,
+            media: s.media,
+          }))
+        )
+        if (active && fingerprint !== fingerprintRef.current) {
+          setSessions(next)
+          fingerprintRef.current = fingerprint
+        }
       } catch (e) {
-        if (active) setSessions([])
+        // 网络/Emby 抖动时保持现有 UI，避免闪烁
+        if (active && showLoading) {
+          setSessions([])
+          fingerprintRef.current = ''
+        }
       } finally {
-        if (active) setLoading(false)
+        if (active && showLoading) setLoading(false)
       }
     }
 
-    load()
-    timer = setInterval(load, 8000)
+    load(true)
+    timer = setInterval(() => load(false), 5000)
 
     return () => {
       active = false
@@ -83,7 +106,7 @@ export default function HomePage() {
                 {sessions.length ? (
                   sessions.map((s) => (
                     <div key={s.session_id} className='rounded-lg border p-3 text-sm'>
-                      <div className='font-medium'>{s.username}</div>
+                      <UserIdentity name={s.username} groups={s.groups || []} />
                       <div className='mt-1 text-muted-foreground'>
                         <div>内容：{s.media}</div>
                         <div>设备：{s.device} · {s.client}</div>
@@ -112,7 +135,9 @@ export default function HomePage() {
                   <TableBody>
                     {sessions.map((s) => (
                       <TableRow key={s.session_id}>
-                        <TableCell>{s.username}</TableCell>
+                        <TableCell>
+                          <UserIdentity name={s.username} groups={s.groups || []} />
+                        </TableCell>
                         <TableCell>{s.ip_address}</TableCell>
                         <TableCell>{s.location}</TableCell>
                         <TableCell>{s.device}</TableCell>
