@@ -16,8 +16,11 @@ ENV TZ=Asia/Shanghai \
     PYTHONUNBUFFERED=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
-RUN ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime \
-    && echo ${TZ} > /etc/timezone
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git tzdata \
+    && ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime \
+    && echo ${TZ} > /etc/timezone \
+    && rm -rf /var/lib/apt/lists/*
 
 # Python deps
 COPY requirements.txt ./
