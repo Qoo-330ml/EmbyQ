@@ -254,7 +254,7 @@ class EmbyMonitor:
             print(f"❌ 结束记录失败: {str(e)}")
 
     def _get_location(self, ip_address):
-        """解析地理位置，优先使用 IP-hiofd，统一格式：位置·区·街道"""
+        """解析地理位置，使用 qoo-ip138，统一格式：位置·区·街道"""
         if not ip_address:
             return "未知位置"
 

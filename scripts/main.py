@@ -46,11 +46,10 @@ def run_startup_self_check() -> bool:
                 "werkzeug",
                 "flask_login",
                 "waitress",
-                "ip_hiofd",
             ]
         )
     )
-    errors.extend(_check_cli_commands(["ip-hiofd", "qoo-ip138"]))
+    errors.extend(_check_cli_commands(["qoo-ip138"]))
 
     if errors:
         print("❌ 启动自检失败：")

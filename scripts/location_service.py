@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import shutil
 import subprocess
 import time
@@ -8,14 +7,11 @@ from typing import Any
 
 
 class LocationService:
-    """IP 归属地查询服务：优先 IP-hiofd，失败回退 qoo-ip138（均走在线 pip 包 CLI）。"""
+    """IP 归属地查询服务：仅使用 qoo-ip138（在线 pip 包 CLI）。"""
 
     def __init__(self, timeout_sec: int = 45):
         self.timeout_sec = timeout_sec
         self.cache: dict[str, dict[str, Any]] = {}
-        # hiofd 偶发返回旧结果导致 result_ip 与 query_ip 不一致，做有限重试
-        self.hiofd_retries = 3
-        self.hiofd_retry_delay_sec = 1.0
 
     def _format_location(self, location: str, district: str, street: str, isp: str) -> str:
         parts = []
@@ -55,49 +51,6 @@ class LocationService:
             raise RuntimeError(f"命令执行失败: {' '.join(cmd)} | {detail}")
 
         return (proc.stdout or "").strip()
-
-    def _query_hiofd(self, ip_address: str) -> dict[str, Any]:
-        # 按约定使用安装后 CLI：ip-hiofd <ip> --json
-        last_err: Exception | None = None
-
-        for attempt in range(1, self.hiofd_retries + 1):
-            try:
-                output = self._run_cmd(["ip-hiofd", ip_address, "--json"])
-                data = json.loads(output)
-
-                result_ip = str(data.get("result_ip") or "").strip()
-                # 双保险：即便 CLI 返回 0，也校验返回 IP 与请求 IP 一致
-                if result_ip and result_ip != ip_address:
-                    raise RuntimeError(
-                        f"hiofd 返回 IP 不一致: query={ip_address}, result={result_ip}"
-                    )
-
-                location = str(data.get("location") or "").strip()
-                district = str(data.get("district") or "").strip()
-                street = str(data.get("street") or "").strip()
-                isp = str(data.get("isp") or "").strip()
-
-                return {
-                    "provider": "hiofd",
-                    "ip": ip_address,
-                    "location": location,
-                    "district": district,
-                    "street": street,
-                    "isp": isp,
-                    "formatted": self._format_location(location, district, street, isp),
-                    "ts": int(time.time()),
-                }
-            except Exception as e:
-                last_err = e
-                if attempt < self.hiofd_retries:
-                    print(
-                        f"📍 Hiofd 查询重试({attempt}/{self.hiofd_retries}) {ip_address}: {e}"
-                    )
-                    time.sleep(self.hiofd_retry_delay_sec)
-
-        raise RuntimeError(
-            f"Hiofd 多次查询失败({self.hiofd_retries}次): {last_err}"
-        )
 
     def _query_ip138(self, ip_address: str) -> dict[str, Any]:
         # 按约定使用安装后 CLI：qoo-ip138 --ip=<ip>
@@ -146,23 +99,19 @@ class LocationService:
             return self.cache[ip_address]
 
         try:
-            info = self._query_hiofd(ip_address)
+            info = self._query_ip138(ip_address)
         except Exception as e:
-            print(f"📍 Hiofd 查询失败({ip_address}): {e}，回退 ip138")
-            try:
-                info = self._query_ip138(ip_address)
-            except Exception as e2:
-                print(f"📍 ip138 查询也失败({ip_address}): {e2}")
-                info = {
-                    "provider": "none",
-                    "ip": ip_address,
-                    "location": "",
-                    "district": "",
-                    "street": "",
-                    "isp": "",
-                    "formatted": "解析失败",
-                    "ts": int(time.time()),
-                }
+            print(f"📍 ip138 查询失败({ip_address}): {e}")
+            info = {
+                "provider": "none",
+                "ip": ip_address,
+                "location": "",
+                "district": "",
+                "street": "",
+                "isp": "",
+                "formatted": "解析失败",
+                "ts": int(time.time()),
+            }
 
         self.cache[ip_address] = info
         return info

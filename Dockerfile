@@ -21,7 +21,7 @@ RUN apk add --no-cache tzdata ca-certificates \
     && ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime \
     && echo ${TZ} > /etc/timezone
 
-# Python deps（ip-hiofd 0.2.0 + qoo-ip138）
+# Python deps（qoo-ip138）
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 

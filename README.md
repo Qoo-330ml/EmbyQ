@@ -51,7 +51,7 @@ services:
 
 > 说明：
 > - 镜像已去除 Playwright + Chromium，采用更轻量的纯 Python 运行时。
-> - 归属地查询依赖：`ip-hiofd==0.2.0`（优先）与 `qoo-ip138`（回退）。
+> - 归属地查询依赖：`qoo-ip138`。
 > - 相比旧版浏览器运行时镜像，体积显著缩减。
 #### 2. 配置服务
 首次启动后，程序会在 `/path/to/emby-iplimit/data` 目录下生成默认配置文件 `config.yaml`。
@@ -71,9 +71,9 @@ pip install -r requirements.txt
 ```
 
 > 依赖说明（新环境）
-> - Python 包：`requests`、`Flask`、`pyyaml`、`Werkzeug`、`flask_login`、`waitress`、`ip-hiofd==0.2.0`、`qoo-ip138`
+> - Python 包：`requests`、`Flask`、`pyyaml`、`Werkzeug`、`flask_login`、`waitress`、`qoo-ip138`
 > - 无需额外安装 Chromium / Playwright 浏览器运行时
-> - CLI 命令：`ip-hiofd`、`qoo-ip138`（由对应 pip 包安装）
+> - CLI 命令：`qoo-ip138`（由对应 pip 包安装）
 
 #### 3. 复制配置模板
 ```bash

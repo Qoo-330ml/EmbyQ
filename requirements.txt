@@ -4,5 +4,4 @@ pyyaml
 Werkzeug
 flask_login
 waitress
-ip-hiofd==0.2.0
 qoo-ip138
