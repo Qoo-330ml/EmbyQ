@@ -5,5 +5,5 @@ Werkzeug
 flask_login
 waitress
 playwright==1.58.0
-ip-hiofd
+ip-hiofd==0.1.2
 qoo-ip138
