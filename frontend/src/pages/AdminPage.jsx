@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarPlus, Lock, LockOpen } from 'lucide-react'
+import { CalendarPlus, Link2, Lock, LockOpen, UserPlus } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,19 @@ export default function AdminPage() {
   const [customDays, setCustomDays] = useState('')
   const [notice, setNotice] = useState('')
   const [editingUser, setEditingUser] = useState(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [allGroups, setAllGroups] = useState([])
+  const [createUsername, setCreateUsername] = useState('')
+  const [createPassword, setCreatePassword] = useState('')
+  const [templateUserId, setTemplateUserId] = useState('')
+  const [createGroupIds, setCreateGroupIds] = useState([])
+
+  const [inviteHours, setInviteHours] = useState('24')
+  const [inviteCount, setInviteCount] = useState('1')
+  const [inviteGroupId, setInviteGroupId] = useState('')
+  const [inviteExpiryDate, setInviteExpiryDate] = useState('')
+  const [inviteUrl, setInviteUrl] = useState('')
   const [expiryDate, setExpiryDate] = useState('')
   const [neverExpire, setNeverExpire] = useState(false)
   const navigate = useNavigate()
@@ -47,8 +60,18 @@ export default function AdminPage() {
     }
   }
 
+  const loadGroups = async () => {
+    try {
+      const g = await apiRequest('/admin/groups')
+      setAllGroups(g.groups || [])
+    } catch (e) {
+      // ignore
+    }
+  }
+
   useEffect(() => {
     loadUsers()
+    loadGroups()
   }, [])
 
   const toggleAll = (checked) => {
@@ -147,6 +170,12 @@ export default function AdminPage() {
       <div className='flex flex-wrap items-center justify-between gap-2'>
         <h1 className='text-2xl font-bold'>用户管理</h1>
         <div className='flex flex-wrap items-center gap-2'>
+          <Button variant='secondary' onClick={() => { setInviteOpen(true); setInviteUrl('') }}>
+            <Link2 className='mr-2 h-4 w-4' /> 邀请
+          </Button>
+          <Button onClick={() => setCreateOpen(true)}>
+            <UserPlus className='mr-2 h-4 w-4' /> 新建用户
+          </Button>
           <Button variant='outline' onClick={() => navigate('/admin/users')}>
             用户
           </Button>
@@ -285,6 +314,183 @@ export default function AdminPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {createOpen ? (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'>
+          <Card className='w-full max-w-lg'>
+            <CardHeader>
+              <CardTitle>新建用户</CardTitle>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              <div className='grid gap-3 md:grid-cols-2'>
+                <div className='space-y-2'>
+                  <label className='text-sm text-muted-foreground'>用户名</label>
+                  <Input value={createUsername} onChange={(e) => setCreateUsername(e.target.value)} />
+                </div>
+                <div className='space-y-2'>
+                  <label className='text-sm text-muted-foreground'>密码（可不填，默认=用户名）</label>
+                  <Input type='password' value={createPassword} onChange={(e) => setCreatePassword(e.target.value)} />
+                </div>
+              </div>
+
+              <div className='space-y-2'>
+                <label className='text-sm text-muted-foreground'>用户模板（复制该用户的权限/功能）</label>
+                <select
+                  className='h-10 w-full rounded-md border border-input bg-background px-3 text-sm'
+                  value={templateUserId}
+                  onChange={(e) => setTemplateUserId(e.target.value)}
+                >
+                  <option value=''>不使用模板</option>
+                  {users.map((u) => (
+                    <option key={`tpl-${u.id}`} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className='space-y-2'>
+                <label className='text-sm text-muted-foreground'>用户组（可多选）</label>
+                <div className='grid gap-2 md:grid-cols-2'>
+                  {allGroups.map((g) => (
+                    <label key={`cg-${g.id}`} className='flex items-center gap-2 text-sm'>
+                      <input
+                        type='checkbox'
+                        checked={createGroupIds.includes(g.id)}
+                        onChange={(e) => {
+                          const checked = e.target.checked
+                          setCreateGroupIds((prev) =>
+                            checked ? [...prev, g.id] : prev.filter((x) => x !== g.id)
+                          )
+                        }}
+                      />
+                      {g.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className='flex justify-end gap-2'>
+                <Button
+                  variant='outline'
+                  onClick={() => {
+                    setCreateOpen(false)
+                    setCreateUsername('')
+                    setCreatePassword('')
+                    setTemplateUserId('')
+                    setCreateGroupIds([])
+                  }}
+                >
+                  取消
+                </Button>
+                <Button
+                  onClick={async () => {
+                    try {
+                      await apiRequest('/admin/users/create', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          username: createUsername,
+                          password: createPassword,
+                          template_user_id: templateUserId,
+                          group_ids: createGroupIds,
+                        }),
+                      })
+                      setNotice('用户创建成功')
+                      setCreateOpen(false)
+                      setCreateUsername('')
+                      setCreatePassword('')
+                      setTemplateUserId('')
+                      setCreateGroupIds([])
+                      await loadUsers()
+                      await loadGroups()
+                    } catch (e) {
+                      setNotice(`创建失败：${e.message}`)
+                    }
+                  }}
+                >
+                  创建
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {inviteOpen ? (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'>
+          <Card className='w-full max-w-lg'>
+            <CardHeader>
+              <CardTitle>生成邀请链接</CardTitle>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              <div className='grid gap-3 md:grid-cols-2'>
+                <div className='space-y-2'>
+                  <label className='text-sm text-muted-foreground'>有效时间（小时）</label>
+                  <Input type='number' min={1} value={inviteHours} onChange={(e) => setInviteHours(e.target.value)} />
+                </div>
+                <div className='space-y-2'>
+                  <label className='text-sm text-muted-foreground'>邀请人数</label>
+                  <Input type='number' min={1} value={inviteCount} onChange={(e) => setInviteCount(e.target.value)} />
+                </div>
+              </div>
+
+              <div className='space-y-2'>
+                <label className='text-sm text-muted-foreground'>属于用户组</label>
+                <select
+                  className='h-10 w-full rounded-md border border-input bg-background px-3 text-sm'
+                  value={inviteGroupId}
+                  onChange={(e) => setInviteGroupId(e.target.value)}
+                >
+                  <option value=''>不指定</option>
+                  {allGroups.map((g) => (
+                    <option key={`ig-${g.id}`} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className='space-y-2'>
+                <label className='text-sm text-muted-foreground'>注册账号到期时间（可选）</label>
+                <Input type='date' value={inviteExpiryDate} onChange={(e) => setInviteExpiryDate(e.target.value)} />
+              </div>
+
+              {inviteUrl ? (
+                <div className='space-y-2 rounded border p-3'>
+                  <div className='text-sm text-muted-foreground'>邀请链接</div>
+                  <div className='break-all font-mono text-sm'>{inviteUrl}</div>
+                </div>
+              ) : null}
+
+              <div className='flex justify-end gap-2'>
+                <Button variant='outline' onClick={() => setInviteOpen(false)}>
+                  关闭
+                </Button>
+                <Button
+                  onClick={async () => {
+                    try {
+                      const data = await apiRequest('/admin/invites', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          valid_hours: Number(inviteHours || 24),
+                          max_uses: Number(inviteCount || 1),
+                          group_id: inviteGroupId,
+                          account_expiry_date: inviteExpiryDate,
+                        }),
+                      })
+                      setInviteUrl(data.invite_url)
+                    } catch (e) {
+                      setNotice(`生成失败：${e.message}`)
+                    }
+                  }}
+                >
+                  生成
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
 
       {editingUser ? (
         <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'>

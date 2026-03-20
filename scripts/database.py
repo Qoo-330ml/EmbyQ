@@ -1,20 +1,24 @@
 import os
+import secrets
 import sqlite3
-from datetime import datetime
+import string
+from datetime import datetime, timedelta
+
 
 def get_data_dir():
     """获取data目录路径"""
     return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
 
+
 class DatabaseManager:
     def __init__(self, db_name=None):
         data_dir = get_data_dir()
         os.makedirs(data_dir, exist_ok=True)
-        
+
         # 从配置获取数据库名称
         self.db_path = os.path.join(data_dir, db_name) if db_name else os.path.join(data_dir, 'emby_playback.db')
         self.init_db()
-    
+
     def init_db(self):
         """初始化数据库结构"""
         with sqlite3.connect(self.db_path) as conn:
@@ -35,7 +39,7 @@ class DatabaseManager:
                     location TEXT
                 )
             ''')
-            
+
             # 安全日志表（带自动迁移）
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS security_log (
@@ -48,8 +52,7 @@ class DatabaseManager:
                     action TEXT
                 )
             ''')
-            
-            # 检查旧表结构
+
             try:
                 cursor = conn.execute("PRAGMA table_info(security_log)")
                 columns = [row[1] for row in cursor.fetchall()]
@@ -57,7 +60,7 @@ class DatabaseManager:
                     conn.execute('ALTER TABLE security_log ADD COLUMN username TEXT')
             except sqlite3.OperationalError:
                 pass
-            
+
             # 用户到期时间表（支持永不过期）
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS user_expiry (
@@ -70,11 +73,9 @@ class DatabaseManager:
                 )
             ''')
 
-            # 迁移：检查并添加 never_expire 列（兼容旧数据库）
             try:
                 conn.execute('SELECT never_expire FROM user_expiry LIMIT 1')
             except sqlite3.OperationalError:
-                # 列不存在，需要添加
                 conn.execute('ALTER TABLE user_expiry ADD COLUMN never_expire INTEGER DEFAULT 0')
                 conn.commit()
 
@@ -100,15 +101,31 @@ class DatabaseManager:
                 )
             ''')
 
+            # 邀请链接表
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS invites (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    code TEXT NOT NULL UNIQUE,
+                    expires_at DATETIME NOT NULL,
+                    max_uses INTEGER NOT NULL,
+                    used_count INTEGER DEFAULT 0,
+                    group_id TEXT,
+                    account_expiry_date DATE,
+                    is_active INTEGER DEFAULT 1,
+                    created_by TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
             conn.commit()
 
     def record_session_start(self, session_data):
-        """记录播放开始"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute('''
                 INSERT INTO playback_history (
                     session_id, user_id, username, ip_address,
-                    device_name, client_type, media_name, 
+                    device_name, client_type, media_name,
                     start_time, location
                 ) VALUES (?,?,?,?,?,?,?,?,?)
             ''', (
@@ -123,9 +140,8 @@ class DatabaseManager:
                 session_data.get('location', '未知位置')
             ))
             conn.commit()
-    
+
     def get_user_playback_records(self, user_id, limit=10):
-        """获取用户最近的播放记录（只返回已结束的会话）"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute('''
                 SELECT session_id, ip_address, device_name, client_type, media_name,
@@ -136,9 +152,8 @@ class DatabaseManager:
                 LIMIT ?
             ''', (user_id, limit))
             return cursor.fetchall()
-    
+
     def get_user_ban_info(self, user_id):
-        """获取用户封禁信息"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute('''
                 SELECT timestamp, trigger_ip, active_sessions, action
@@ -148,9 +163,8 @@ class DatabaseManager:
                 LIMIT 1
             ''', (user_id,))
             return cursor.fetchone()
-    
+
     def get_playback_records_by_username(self, username, limit=10):
-        """通过用户名获取最近的播放记录（只返回已结束的会话）"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute('''
                 SELECT session_id, ip_address, device_name, client_type, media_name,
@@ -161,9 +175,8 @@ class DatabaseManager:
                 LIMIT ?
             ''', (username, limit))
             return cursor.fetchall()
-    
+
     def get_ban_info_by_username(self, username):
-        """通过用户名获取封禁信息"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute('''
                 SELECT timestamp, trigger_ip, active_sessions, action
@@ -175,10 +188,9 @@ class DatabaseManager:
             return cursor.fetchone()
 
     def record_session_end(self, session_id, end_time, duration):
-        """记录播放结束"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute('''
-                UPDATE playback_history 
+                UPDATE playback_history
                 SET end_time = ?, duration = ?
                 WHERE session_id = ?
             ''', (
@@ -189,10 +201,9 @@ class DatabaseManager:
             conn.commit()
 
     def log_security_event(self, log_data):
-        """记录安全日志"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute('''
-                INSERT INTO security_log 
+                INSERT INTO security_log
                 (timestamp, user_id, username, trigger_ip, active_sessions, action)
                 VALUES (?,?,?,?,?,?)
             ''', (
@@ -206,7 +217,6 @@ class DatabaseManager:
             conn.commit()
 
     def set_user_expiry(self, user_id, expiry_date, never_expire=False):
-        """设置用户到期时间，支持永不过期"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute('''
                 INSERT INTO user_expiry (user_id, expiry_date, never_expire, updated_at)
@@ -219,7 +229,6 @@ class DatabaseManager:
             conn.commit()
 
     def set_user_never_expire(self, user_id, never_expire=True):
-        """设置用户永不过期状态"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute('''
                 INSERT INTO user_expiry (user_id, never_expire, updated_at)
@@ -231,7 +240,6 @@ class DatabaseManager:
             conn.commit()
 
     def get_user_expiry(self, user_id):
-        """获取用户到期时间"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute('''
                 SELECT expiry_date, never_expire FROM user_expiry WHERE user_id = ?
@@ -242,7 +250,6 @@ class DatabaseManager:
             return None
 
     def is_user_never_expire(self, user_id):
-        """检查用户是否永不过期"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute('''
                 SELECT never_expire FROM user_expiry WHERE user_id = ?
@@ -251,28 +258,21 @@ class DatabaseManager:
             return bool(result[0]) if result else False
 
     def get_all_expired_users(self):
-        """获取所有已到期但未禁用的用户（排除永不过期的）"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute('''
-                SELECT user_id FROM user_expiry 
-                WHERE expiry_date IS NOT NULL 
+                SELECT user_id FROM user_expiry
+                WHERE expiry_date IS NOT NULL
                 AND expiry_date < DATE('now')
                 AND (never_expire IS NULL OR never_expire = 0)
             ''')
             return [row[0] for row in cursor.fetchall()]
 
     def clear_user_expiry(self, user_id):
-        """清除用户到期时间"""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute('''
-                DELETE FROM user_expiry WHERE user_id = ?
-            ''', (user_id,))
+            conn.execute('DELETE FROM user_expiry WHERE user_id = ?', (user_id,))
             conn.commit()
 
-    # ==================== 用户组管理方法 ====================
-
     def create_user_group(self, group_id, name):
-        """创建用户组"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute('''
                 INSERT INTO user_groups (group_id, name, updated_at)
@@ -281,38 +281,30 @@ class DatabaseManager:
             conn.commit()
 
     def delete_user_group(self, group_id):
-        """删除用户组"""
         with sqlite3.connect(self.db_path) as conn:
-            # 先删除组成员
             conn.execute('DELETE FROM user_group_members WHERE group_id = ?', (group_id,))
-            # 再删除组
             conn.execute('DELETE FROM user_groups WHERE group_id = ?', (group_id,))
             conn.commit()
 
     def get_all_user_groups(self):
-        """获取所有用户组及其成员"""
         with sqlite3.connect(self.db_path) as conn:
-            # 获取所有组
-            cursor = conn.execute('''
-                SELECT group_id, name FROM user_groups ORDER BY created_at
-            ''')
+            cursor = conn.execute('SELECT group_id, name FROM user_groups ORDER BY created_at')
             groups = []
             for row in cursor.fetchall():
                 group_id, name = row
-                # 获取该组的成员
-                member_cursor = conn.execute('''
-                    SELECT user_id FROM user_group_members WHERE group_id = ?
-                ''', (group_id,))
+                member_cursor = conn.execute(
+                    'SELECT user_id FROM user_group_members WHERE group_id = ?',
+                    (group_id,),
+                )
                 members = [m[0] for m in member_cursor.fetchall()]
                 groups.append({
                     'id': group_id,
                     'name': name,
-                    'members': members
+                    'members': members,
                 })
             return groups
 
     def add_user_to_group(self, group_id, user_id):
-        """添加用户到组"""
         with sqlite3.connect(self.db_path) as conn:
             try:
                 conn.execute('''
@@ -322,11 +314,9 @@ class DatabaseManager:
                 conn.commit()
                 return True
             except sqlite3.IntegrityError:
-                # 用户已在组中
                 return False
 
     def remove_user_from_group(self, group_id, user_id):
-        """从组中移除用户"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute('''
                 DELETE FROM user_group_members WHERE group_id = ? AND user_id = ?
@@ -334,9 +324,99 @@ class DatabaseManager:
             conn.commit()
 
     def get_group_members(self, group_id):
-        """获取组的成员列表"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute('''
                 SELECT user_id FROM user_group_members WHERE group_id = ?
             ''', (group_id,))
             return [row[0] for row in cursor.fetchall()]
+
+    def _generate_invite_code(self, length=8):
+        alphabet = string.ascii_letters + string.digits
+        return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+    def create_invite(self, valid_hours, max_uses, group_id=None, account_expiry_date=None, created_by='admin'):
+        expires_at = datetime.now() + timedelta(hours=int(valid_hours))
+        code = None
+
+        with sqlite3.connect(self.db_path) as conn:
+            for _ in range(10):
+                candidate = self._generate_invite_code(8)
+                exists = conn.execute('SELECT 1 FROM invites WHERE code = ?', (candidate,)).fetchone()
+                if not exists:
+                    code = candidate
+                    break
+
+            if not code:
+                raise RuntimeError('生成邀请链接失败，请重试')
+
+            conn.execute('''
+                INSERT INTO invites (
+                    code, expires_at, max_uses, used_count, group_id,
+                    account_expiry_date, is_active, created_by, updated_at
+                ) VALUES (?, ?, ?, 0, ?, ?, 1, ?, CURRENT_TIMESTAMP)
+            ''', (
+                code,
+                expires_at.strftime('%Y-%m-%d %H:%M:%S'),
+                int(max_uses),
+                group_id or None,
+                account_expiry_date or None,
+                created_by,
+            ))
+            conn.commit()
+
+        return self.get_invite_by_code(code)
+
+    def get_invite_by_code(self, code):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute('''
+                SELECT code, expires_at, max_uses, used_count, group_id,
+                       account_expiry_date, is_active, created_by, created_at
+                FROM invites
+                WHERE code = ?
+            ''', (code,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return {
+                'code': row[0],
+                'expires_at': row[1],
+                'max_uses': row[2],
+                'used_count': row[3],
+                'group_id': row[4],
+                'account_expiry_date': row[5],
+                'is_active': bool(row[6]),
+                'created_by': row[7],
+                'created_at': row[8],
+            }
+
+    def consume_invite(self, code):
+        with sqlite3.connect(self.db_path) as conn:
+            invite = self.get_invite_by_code(code)
+            if not invite:
+                return False
+
+            conn.execute('''
+                UPDATE invites
+                SET used_count = used_count + 1,
+                    is_active = CASE WHEN used_count + 1 >= max_uses THEN 0 ELSE is_active END,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE code = ? AND is_active = 1
+            ''', (code,))
+            conn.commit()
+            return True
+
+    def is_invite_available(self, code):
+        invite = self.get_invite_by_code(code)
+        if not invite:
+            return False, '邀请不存在'
+        if not invite['is_active']:
+            return False, '邀请已失效'
+        if invite['used_count'] >= invite['max_uses']:
+            return False, '邀请名额已用完'
+        try:
+            expires_at = datetime.strptime(invite['expires_at'], '%Y-%m-%d %H:%M:%S')
+            if expires_at < datetime.now():
+                return False, '邀请已过期'
+        except Exception:
+            return False, '邀请时间异常'
+        return True, ''

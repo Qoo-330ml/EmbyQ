@@ -107,10 +107,24 @@ export default function ConfigPage() {
         </CardHeader>
         <CardContent className='grid gap-4 md:grid-cols-2'>
           <div className='space-y-2'>
-            <label className='text-sm text-muted-foreground'>服务器地址</label>
+            <label className='text-sm text-muted-foreground'>服务器地址（内网）</label>
             <Input
               value={config.emby.server_url || ''}
               onChange={(e) => update(['emby', 'server_url'], e.target.value)}
+            />
+          </div>
+          <div className='space-y-2'>
+            <label className='text-sm text-muted-foreground'>服务器外网地址</label>
+            <Input
+              value={config.emby.external_url || ''}
+              onChange={(e) => update(['emby', 'external_url'], e.target.value)}
+            />
+          </div>
+          <div className='space-y-2'>
+            <label className='text-sm text-muted-foreground'>IPLimit 外网地址</label>
+            <Input
+              value={config.service?.external_url || ''}
+              onChange={(e) => update(['service', 'external_url'], e.target.value)}
             />
           </div>
           <div className='space-y-2'>

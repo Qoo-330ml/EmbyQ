@@ -2,7 +2,10 @@ database:
   name: emby_playback.db # 默认数据库，不改动
 emby:
   server_url: https://emby.example.com
+  external_url: https://emby.example.com
   api_key: your_api_key_here
+service:
+  external_url: https://emby-iplimit.example.com:5000
 monitor:
   check_interval: 10
 notifications:

@@ -132,6 +132,36 @@ class WebServer:
             }
             return jsonify({'users': users, 'stats': stats})
 
+        @self.app.post('/api/admin/users/create')
+        @login_required
+        def admin_create_user():
+            data = request.get_json(silent=True) or {}
+            username = (data.get('username') or '').strip()
+            password = (data.get('password') or '').strip() or username
+            template_user_id = (data.get('template_user_id') or '').strip()
+            group_ids = data.get('group_ids') or []
+
+            if not username:
+                return jsonify({'error': '请输入用户名'}), 400
+
+            user_id, error = self.emby_client.create_user(username, password)
+            if error:
+                return jsonify({'error': error}), 500
+
+            if template_user_id:
+                policy = self.emby_client.get_user_policy(template_user_id)
+                if policy:
+                    if not self.emby_client.set_user_policy(user_id, policy):
+                        return jsonify({'error': '用户已创建，但复制模板权限失败'}), 500
+
+            for group_id in group_ids:
+                try:
+                    self.db_manager.add_user_to_group(group_id, user_id)
+                except Exception:
+                    pass
+
+            return jsonify({'success': True, 'user_id': user_id})
+
         @self.app.post('/api/admin/users/toggle')
         @login_required
         def admin_toggle_user():
@@ -304,6 +334,34 @@ class WebServer:
         def admin_groups():
             return jsonify({'groups': self.db_manager.get_all_user_groups()})
 
+        @self.app.post('/api/admin/invites')
+        @login_required
+        def admin_create_invite():
+            data = request.get_json(silent=True) or {}
+            valid_hours = int(data.get('valid_hours') or 24)
+            max_uses = int(data.get('max_uses') or 1)
+            group_id = (data.get('group_id') or '').strip() or None
+            account_expiry_date = (data.get('account_expiry_date') or '').strip() or None
+
+            if valid_hours <= 0 or max_uses <= 0:
+                return jsonify({'error': '参数错误'}), 400
+
+            try:
+                invite = self.db_manager.create_invite(
+                    valid_hours=valid_hours,
+                    max_uses=max_uses,
+                    group_id=group_id,
+                    account_expiry_date=account_expiry_date,
+                    created_by='admin',
+                )
+            except Exception as exc:
+                return jsonify({'error': str(exc)}), 500
+
+            service_url = (self.config.get('service', {}).get('external_url') or '').rstrip('/')
+            invite_url = f"{service_url}/invite/{invite['code']}" if service_url else f"/invite/{invite['code']}"
+
+            return jsonify({'invite': invite, 'invite_url': invite_url})
+
         @self.app.post('/api/admin/groups')
         @login_required
         def admin_create_group():
@@ -350,6 +408,51 @@ class WebServer:
                 return jsonify({'success': True})
             except Exception as exc:
                 return jsonify({'error': str(exc)}), 500
+
+        @self.app.get('/api/public/invite/<code>')
+        def public_invite_info(code):
+            available, message = self.db_manager.is_invite_available(code)
+            if not available:
+                return jsonify({'error': message}), 400
+            invite = self.db_manager.get_invite_by_code(code)
+            return jsonify({'invite': invite})
+
+        @self.app.post('/api/public/invite/<code>/register')
+        def public_invite_register(code):
+            data = request.get_json(silent=True) or {}
+            username = (data.get('username') or '').strip()
+            password = (data.get('password') or '').strip() or username
+
+            if not username:
+                return jsonify({'error': '请输入用户名'}), 400
+
+            available, message = self.db_manager.is_invite_available(code)
+            if not available:
+                return jsonify({'error': message}), 400
+
+            user_id, error = self.emby_client.create_user(username, password)
+            if error:
+                return jsonify({'error': error}), 500
+
+            invite = self.db_manager.get_invite_by_code(code)
+            if invite and invite.get('group_id'):
+                try:
+                    self.db_manager.add_user_to_group(invite['group_id'], user_id)
+                except Exception:
+                    pass
+
+            if invite and invite.get('account_expiry_date'):
+                try:
+                    self.db_manager.set_user_expiry(user_id, invite['account_expiry_date'], False)
+                except Exception:
+                    pass
+
+            self.db_manager.consume_invite(code)
+
+            redirect_url = (self.config.get('emby', {}).get('external_url') or '').strip() or \
+                (self.config.get('emby', {}).get('server_url') or '').strip()
+
+            return jsonify({'success': True, 'redirect_url': redirect_url})
 
         @self.app.get('/assets/<path:filename>')
         def serve_assets(filename):

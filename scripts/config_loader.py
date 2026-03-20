@@ -17,7 +17,11 @@ def get_data_dir():
 DEFAULT_CONFIG = {
     'emby': {
         'server_url': 'https://emby.example.com',
+        'external_url': 'https://emby.example.com',
         'api_key': 'your_api_key_here'
+    },
+    'service': {
+        'external_url': 'https://emby-iplimit.example.com:5000'
     },
     'database': {
         'name': 'emby_playback.db'
@@ -79,6 +83,11 @@ def load_config():
             config[section].update(user_config[section])
         else:
             config[section] = user_config[section]
+
+    if 'service' not in config:
+        config['service'] = {'external_url': ''}
+    if 'external_url' not in config.get('emby', {}):
+        config['emby']['external_url'] = config['emby'].get('server_url', '')
     
     # 清理旧字段，避免双写
     if 'check_interval' in config.get('emby', {}):
@@ -97,7 +106,7 @@ def load_config():
     
     if missing:
         print("❌ 缺失必要配置项：")
-        for item in missing: 
+        for item in missing:
             print(f"  - {item}")
         exit(1)
     

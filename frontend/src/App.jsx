@@ -7,12 +7,14 @@ import SearchPage from '@/pages/SearchPage'
 import AdminPage from '@/pages/AdminPage'
 import ConfigPage from '@/pages/ConfigPage'
 import GroupsPage from '@/pages/GroupsPage'
+import InviteRegisterPage from '@/pages/InviteRegisterPage'
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path='/login' element={<LoginPage />} />
+        <Route path='/invite/:code' element={<InviteRegisterPage />} />
 
         <Route path='/' element={<AppShell />}>
           <Route index element={<HomePage />} />
