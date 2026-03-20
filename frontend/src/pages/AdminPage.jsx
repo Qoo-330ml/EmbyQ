@@ -567,20 +567,45 @@ export default function AdminPage() {
                             <div className={`break-all font-mono text-xs ${invalid ? 'line-through text-muted-foreground' : ''}`}>
                               {inv.invite_url}
                             </div>
-                            <Button
-                              size='sm'
-                              variant='destructive'
-                              onClick={async () => {
-                                try {
-                                  await apiRequest(`/admin/invites/${inv.code}`, { method: 'DELETE' })
-                                  await loadInvites()
-                                } catch (e) {
-                                  setNotice(`删除邀请失败：${e.message}`)
-                                }
-                              }}
-                            >
-                              删除
-                            </Button>
+                            <div className='flex items-center gap-2'>
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                onClick={async () => {
+                                  try {
+                                    if (navigator.clipboard?.writeText) {
+                                      await navigator.clipboard.writeText(inv.invite_url)
+                                    } else {
+                                      const input = document.createElement('input')
+                                      input.value = inv.invite_url
+                                      document.body.appendChild(input)
+                                      input.select()
+                                      document.execCommand('copy')
+                                      document.body.removeChild(input)
+                                    }
+                                    setNotice('邀请链接已复制')
+                                  } catch {
+                                    setNotice('复制失败，请手动复制')
+                                  }
+                                }}
+                              >
+                                复制
+                              </Button>
+                              <Button
+                                size='sm'
+                                variant='destructive'
+                                onClick={async () => {
+                                  try {
+                                    await apiRequest(`/admin/invites/${inv.code}`, { method: 'DELETE' })
+                                    await loadInvites()
+                                  } catch (e) {
+                                    setNotice(`删除邀请失败：${e.message}`)
+                                  }
+                                }}
+                              >
+                                删除
+                              </Button>
+                            </div>
                           </div>
                           <div className='mt-1 text-xs text-muted-foreground'>
                             使用进度：{inv.used_count}/{inv.max_uses}
