@@ -547,10 +547,50 @@ export default function AdminPage() {
 
               {inviteUrl ? (
                 <div className='space-y-2 rounded border p-3'>
-                  <div className='text-sm text-muted-foreground'>邀请链接</div>
+                  <div className='text-sm text-muted-foreground'>新生成链接</div>
                   <div className='break-all font-mono text-sm'>{inviteUrl}</div>
                 </div>
               ) : null}
+
+              <div className='space-y-2 rounded border p-3'>
+                <div className='text-sm font-medium'>已发邀请链接</div>
+                <div className='max-h-56 space-y-2 overflow-auto'>
+                  {inviteList.length ? (
+                    inviteList.map((inv) => {
+                      const exhausted = Number(inv.used_count || 0) >= Number(inv.max_uses || 0)
+                      const invalid = exhausted || !inv.is_active
+                      return (
+                        <div key={inv.code} className='rounded border p-2'>
+                          <div className='flex items-start justify-between gap-2'>
+                            <div className={`break-all font-mono text-xs ${invalid ? 'line-through text-muted-foreground' : ''}`}>
+                              {inv.invite_url}
+                            </div>
+                            <Button
+                              size='sm'
+                              variant='destructive'
+                              onClick={async () => {
+                                try {
+                                  await apiRequest(`/admin/invites/${inv.code}`, { method: 'DELETE' })
+                                  await loadInvites()
+                                } catch (e) {
+                                  setNotice(`删除邀请失败：${e.message}`)
+                                }
+                              }}
+                            >
+                              删除
+                            </Button>
+                          </div>
+                          <div className='mt-1 text-xs text-muted-foreground'>
+                            使用进度：{inv.used_count}/{inv.max_uses}
+                          </div>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className='text-xs text-muted-foreground'>暂无邀请链接</div>
+                  )}
+                </div>
+              </div>
 
               <div className='flex justify-end gap-2'>
                 <Button variant='outline' onClick={() => setInviteOpen(false)}>
@@ -569,6 +609,7 @@ export default function AdminPage() {
                         }),
                       })
                       setInviteUrl(data.invite_url)
+                      await loadInvites()
                     } catch (e) {
                       setNotice(`生成失败：${e.message}`)
                     }
