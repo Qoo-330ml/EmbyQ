@@ -81,6 +81,7 @@ services:
     image: pdzhou/embyq:latest   # 若使用 ip-hiofd 分支镜像请改为 ip-hiofd 标签
     container_name: embyq
     restart: always
+    tty: true
     ports:
       - "5000:5000"
     volumes:
