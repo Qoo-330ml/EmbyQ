@@ -44,6 +44,15 @@ DEFAULT_CONFIG = {
         'retry_attempts': 3,
         'title': 'Emby用户封禁通知',
         'content_template': '用户 {username} 在 {location} 使用 {ip_address} ({ip_type}) 登录，检测到 {session_count} 个并发会话，已自动封禁。'
+    },
+    'ip_location': {
+        'use_hiofd': False,
+        'geocache': {
+            'enabled': False,
+            'base_url': 'http://127.0.0.1:18080',
+            'api_key': 'change_me_api_key',
+            'timeout': 10
+        }
     }
 }
 

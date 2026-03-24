@@ -9,13 +9,20 @@ from webhook_notifier import WebhookNotifier
 from location_service import LocationService
 
 class EmbyMonitor:
-    def __init__(self, db_manager, emby_client, security_client, config):
+    def __init__(self, db_manager, emby_client, security_client, config, location_service=None):
         self.db = db_manager
         self.emby = emby_client
         self.security = security_client
         self.config = config
         self.active_sessions = {}
-        self.location_service = LocationService()
+        
+        # 使用传入的 location_service 或创建新的
+        if location_service:
+            self.location_service = location_service
+        else:
+            use_hiofd = config.get('ip_location', {}).get('use_hiofd', False)
+            geocache_config = config.get('ip_location', {}).get('geocache', {})
+            self.location_service = LocationService(use_hiofd=use_hiofd, db_manager=db_manager, geocache_config=geocache_config)
         
         # 预处理白名单（不区分大小写）
         self.whitelist = [name.strip().lower() 
@@ -176,6 +183,7 @@ class EmbyMonitor:
             current_sessions = self.emby.get_active_sessions()
             self._detect_new_sessions(current_sessions)
             self._detect_ended_sessions(current_sessions)
+            self._update_session_positions(current_sessions)
         except Exception as e:
             print(f"❌ 会话更新失败: {str(e)}")
 
@@ -190,6 +198,27 @@ class EmbyMonitor:
         ended = set(self.active_sessions.keys()) - set(current_sessions.keys())
         for sid in ended:
             self._record_session_end(sid)
+
+    def _update_session_positions(self, current_sessions):
+        """更新活跃会话的播放位置"""
+        for session_id, session in current_sessions.items():
+            if session_id in self.active_sessions:
+                play_state = session.get('PlayState', {})
+                position_ticks = play_state.get('PositionTicks', 0)
+                
+                # 获取上次记录的播放位置
+                last_position_ticks = self.active_sessions[session_id].get('last_position_ticks', 0)
+                
+                # 计算增量播放时长（秒）
+                if position_ticks > last_position_ticks:
+                    # 播放位置前进，累加播放时长
+                    delta_ticks = position_ticks - last_position_ticks
+                    delta_seconds = int(delta_ticks / 10000000)
+                    current_duration = self.active_sessions[session_id].get('playback_duration', 0)
+                    self.active_sessions[session_id]['playback_duration'] = current_duration + delta_seconds
+                
+                # 更新上次播放位置
+                self.active_sessions[session_id]['last_position_ticks'] = position_ticks
 
     def _record_session_start(self, session):
         """记录新会话"""
@@ -218,7 +247,9 @@ class EmbyMonitor:
                 'client': session.get('Client', '未知客户端'),
                 'media': media_name,
                 'start_time': datetime.now(),
-                'location': location
+                'location': location,
+                'playback_duration': 0,
+                'last_position_ticks': 0
             }
 
             self.db.record_session_start(session_data)
@@ -243,7 +274,13 @@ class EmbyMonitor:
         try:
             session_data = self.active_sessions[session_id]
             end_time = datetime.now()
-            duration = int((end_time - session_data['start_time']).total_seconds())
+            
+            # 使用内存中记录的实际播放时长
+            duration = session_data.get('playback_duration', 0)
+            
+            # 如果播放时长为0，回退到时间差计算
+            if duration == 0:
+                duration = int((end_time - session_data['start_time']).total_seconds())
             
             self.db.record_session_end(session_id, end_time, duration)
             print(f"[■] {session_data['username']} | 时长: {duration//60}分{duration%60}秒")
@@ -446,6 +483,10 @@ class EmbyMonitor:
         expiry_check_counter = 0
         expiry_check_interval = 60  # 每60个主循环周期检查一次到期用户
 
+        # IP归属地缓存清理计数器
+        ip_cache_cleanup_counter = 0
+        ip_cache_cleanup_interval = 7200  # 每7200个主循环周期清理一次IP归属地缓存（约10小时）
+
         try:
             while True:
                 self.process_sessions()
@@ -455,6 +496,17 @@ class EmbyMonitor:
                 if expiry_check_counter >= expiry_check_interval:
                     self._check_expired_users()
                     expiry_check_counter = 0
+
+                # 定期清理IP归属地缓存
+                ip_cache_cleanup_counter += 1
+                if ip_cache_cleanup_counter >= ip_cache_cleanup_interval:
+                    try:
+                        deleted_count = self.db.cleanup_old_ip_locations(days=30)
+                        if deleted_count > 0:
+                            print(f"🧹 已清理 {deleted_count} 条30天前的IP归属地缓存记录")
+                    except Exception as e:
+                        print(f"❌ 清理IP归属地缓存失败: {str(e)}")
+                    ip_cache_cleanup_counter = 0
 
                 time.sleep(self.config['monitor']['check_interval'])
         except KeyboardInterrupt:

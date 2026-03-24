@@ -14,11 +14,21 @@ from location_service import LocationService
 
 
 class WebServer:
-    def __init__(self, db_manager, emby_client, security_client, config):
+    def __init__(self, db_manager, emby_client, security_client, config, location_service=None, monitor=None):
         self.db_manager = db_manager
         self.emby_client = emby_client
         self.security_client = security_client
         self.config = config
+        
+        # 使用传入的 location_service 或创建新的
+        if location_service:
+            self.location_service = location_service
+        else:
+            use_hiofd = config.get('ip_location', {}).get('use_hiofd', False)
+            self.location_service = LocationService(use_hiofd=use_hiofd, db_manager=db_manager)
+        
+        # 保存 monitor 实例，用于复用会话数据
+        self.monitor = monitor
 
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.frontend_dist = os.path.join(base_dir, 'frontend', 'dist')
@@ -36,7 +46,6 @@ class WebServer:
 
         self.running = False
         self.server_thread = None
-        self.location_service = LocationService()
 
     def _register_routes(self):
         @self.login_manager.user_loader
@@ -332,8 +341,18 @@ class WebServer:
                 if 'web' not in new_config:
                     new_config['web'] = {}
 
+                # 检查 IP 解析方式是否变化
+                old_use_hiofd = self.config.get('ip_location', {}).get('use_hiofd', False)
+                new_use_hiofd = new_config.get('ip_location', {}).get('use_hiofd', False)
+                
                 if save_config(new_config):
                     self.config = load_config()
+                    
+                    # 如果 IP 解析方式有变化，更新 location_service
+                    if old_use_hiofd != new_use_hiofd:
+                        self.location_service.update_config(new_use_hiofd)
+                        print(f"📍 IP解析方式已更新: {'自建库' if new_use_hiofd else 'IP138'}")
+                    
                     return jsonify({'success': True})
                 return jsonify({'error': '保存配置失败'}), 500
             except yaml.YAMLError as exc:
@@ -485,6 +504,15 @@ class WebServer:
         def serve_assets(filename):
             return send_from_directory(self.frontend_assets, filename)
 
+        @self.app.get('/README.md')
+        def serve_readme():
+            try:
+                readme_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'README.md')
+                with open(readme_path, 'r', encoding='utf-8') as f:
+                    return f.read(), 200, {'Content-Type': 'text/markdown; charset=utf-8'}
+            except Exception as exc:
+                return jsonify({'error': f'读取 README 失败: {exc}'}), 500
+
         @self.app.get('/', defaults={'path': ''})
         @self.app.get('/<path:path>')
         def serve_spa(path):
@@ -555,6 +583,15 @@ class WebServer:
 
     def _get_user_active_sessions(self, user_id):
         try:
+            # 如果有 monitor 实例，直接复用其 active_sessions 数据
+            if self.monitor and hasattr(self.monitor, 'active_sessions'):
+                return [
+                    session_data
+                    for session_data in self.monitor.active_sessions.values()
+                    if session_data.get('user_id') == user_id
+                ]
+            
+            # 否则使用原来的逻辑（向后兼容）
             all_sessions = self.emby_client.get_active_sessions()
             user_sessions = []
             for session_id, session in all_sessions.items():
@@ -578,6 +615,12 @@ class WebServer:
 
     def _get_all_active_sessions(self):
         try:
+            # 如果有 monitor 实例，直接复用其 active_sessions 数据
+            # 这样可以确保终端日志和网页显示使用相同的数据源
+            if self.monitor and hasattr(self.monitor, 'active_sessions'):
+                return list(self.monitor.active_sessions.values())
+            
+            # 否则使用原来的逻辑（向后兼容）
             all_sessions = self.emby_client.get_active_sessions()
             active_sessions = []
             for session_id, session in all_sessions.items():

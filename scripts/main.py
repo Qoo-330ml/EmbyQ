@@ -85,12 +85,19 @@ def main() -> int:
     emby_client = EmbyClient(server_url=config["emby"]["server_url"], api_key=config["emby"]["api_key"])
     security = EmbySecurity(server_url=config["emby"]["server_url"], api_key=config["emby"]["api_key"])
 
+    # 初始化 IP 归属地服务（共享实例）
+    from location_service import LocationService
+    use_hiofd = config.get('ip_location', {}).get('use_hiofd', False)
+    geocache_config = config.get('ip_location', {}).get('geocache', {})
+    location_service = LocationService(use_hiofd=use_hiofd, db_manager=db_manager, geocache_config=geocache_config)
+
     # 启动监控服务
     monitor = EmbyMonitor(
         db_manager=db_manager,
         emby_client=emby_client,
         security_client=security,
         config=config,
+        location_service=location_service,
     )
 
     # 初始化并启动Web服务器
@@ -99,6 +106,8 @@ def main() -> int:
         emby_client=emby_client,
         security_client=security,
         config=config,
+        location_service=location_service,
+        monitor=monitor,
     )
     web_server.start()
 

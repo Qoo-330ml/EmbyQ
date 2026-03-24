@@ -8,6 +8,8 @@ service:
   external_url: https://embyq.example.com:5000
 monitor:
   check_interval: 10
+ip_location:
+  use_hiofd: false # 注意！默认使用IP138解析归属地，启用本开关将切换到优先自建归属地库+备用IP数据云（付费库），同时也会开启上传IP数据到自建库以丰富自建库数据，不会上传其他隐私数据，请考虑后开启！
 notifications:
   alert_threshold: 2 # 播放窗口数(需不同IP），达到这个值即禁用
   enable_alerts: true
