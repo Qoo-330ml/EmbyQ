@@ -5,7 +5,6 @@ from typing import Any
 
 
 def _decode(encoded: str) -> str:
-    """解密混淆的字符串"""
     try:
         decoded = base64.b64decode(encoded.encode()).decode()
         return decoded[::-1]
