@@ -46,10 +46,7 @@ DEFAULT_CONFIG = {
         'content_template': '用户 {username} 在 {location} 使用 {ip_address} ({ip_type}) 登录，检测到 {session_count} 个并发会话，已自动封禁。'
     },
     'ip_location': {
-        'use_hiofd': False,
-        'geocache': {
-            'enabled': True
-        }
+        'use_geocache': False
     }
 }
 

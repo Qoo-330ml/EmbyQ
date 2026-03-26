@@ -20,9 +20,10 @@ class EmbyMonitor:
         if location_service:
             self.location_service = location_service
         else:
-            use_hiofd = config.get('ip_location', {}).get('use_hiofd', False)
-            geocache_config = config.get('ip_location', {}).get('geocache', {})
-            self.location_service = LocationService(use_hiofd=use_hiofd, db_manager=db_manager, geocache_config=geocache_config)
+            use_geocache = config.get('ip_location', {}).get('use_geocache', False)
+            # 获取Emby服务器信息
+            emby_server_info = self.emby.get_server_info()
+            self.location_service = LocationService(use_hiofd=use_geocache, db_manager=db_manager, emby_server_info=emby_server_info)
         
         # 预处理白名单（不区分大小写）
         self.whitelist = [name.strip().lower() 

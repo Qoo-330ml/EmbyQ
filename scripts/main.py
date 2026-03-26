@@ -87,9 +87,12 @@ def main() -> int:
 
     # 初始化 IP 归属地服务（共享实例）
     from location_service import LocationService
-    use_hiofd = config.get('ip_location', {}).get('use_hiofd', False)
-    geocache_config = config.get('ip_location', {}).get('geocache', {})
-    location_service = LocationService(use_hiofd=use_hiofd, db_manager=db_manager, geocache_config=geocache_config)
+    use_geocache = config.get('ip_location', {}).get('use_geocache', False)
+    
+    # 获取Emby服务器信息
+    emby_server_info = emby_client.get_server_info()
+    
+    location_service = LocationService(use_hiofd=use_geocache, db_manager=db_manager, emby_server_info=emby_server_info)
 
     # 启动监控服务
     monitor = EmbyMonitor(

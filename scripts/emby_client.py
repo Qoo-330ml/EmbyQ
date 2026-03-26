@@ -152,3 +152,15 @@ class EmbyClient:
         except Exception as e:
             print(f"删除用户失败: {str(e)}")
             return False
+
+    def get_server_info(self):
+        """获取Emby服务器信息"""
+        try:
+            response = self.session.get(
+                f"{self.server_url}/emby/System/Info",
+                timeout=5
+            )
+            return response.json()
+        except Exception as e:
+            print(f"获取服务器信息失败: {str(e)}")
+            return {}

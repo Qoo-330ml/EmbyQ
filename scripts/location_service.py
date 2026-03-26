@@ -12,29 +12,41 @@ from geocache_client import GeoCacheClient
 class LocationService:
     """IP 归属地查询服务：支持 qoo-ip138 和自建库两种方式切换。"""
 
-    def __init__(self, timeout_sec: int = 45, use_hiofd: bool = False, db_manager=None, geocache_config=None):
+    def __init__(self, timeout_sec: int = 45, use_hiofd: bool = False, db_manager=None, emby_server_info: dict = None):
         self.timeout_sec = timeout_sec
         self.use_hiofd = use_hiofd
         self.cache: dict[str, dict[str, Any]] = {}
         self.hiofd_retries = 3
         self.hiofd_retry_delay_sec = 1.0
         self.db_manager = db_manager
+        self.emby_server_info = emby_server_info or {}
         
         self.geocache_client = None
-        self.geocache_enabled = False
-        if geocache_config is None or geocache_config.get('enabled', True):
-            self.geocache_client = GeoCacheClient()
-            self.geocache_enabled = True
+        self.geocache_enabled = self.use_hiofd
+        if self.geocache_enabled:
+            self.geocache_client = GeoCacheClient(emby_server_info=self.emby_server_info)
             print(f"🌍 GeoCache 已启用")
 
     def update_config(self, use_hiofd: bool):
         """更新配置并清空缓存"""
         old_provider = "自建库" if self.use_hiofd else "ip138"
         new_provider = "自建库" if use_hiofd else "ip138"
+        old_geocache_enabled = self.geocache_enabled
+        new_geocache_enabled = use_hiofd
         
         if old_provider != new_provider:
             print(f"📍 IP解析方式已切换: {old_provider} -> {new_provider}")
             self.use_hiofd = use_hiofd
+            self.geocache_enabled = new_geocache_enabled
+            
+            # 更新 GeoCache 客户端
+            if new_geocache_enabled and not old_geocache_enabled:
+                self.geocache_client = GeoCacheClient(emby_server_info=self.emby_server_info)
+                print(f"🌍 GeoCache 已启用")
+            elif not new_geocache_enabled and old_geocache_enabled:
+                self.geocache_client = None
+                print(f"🌍 GeoCache 已禁用")
+            
             self.cache.clear()
             print(f"📍 已清空IP解析缓存")
 

@@ -153,8 +153,8 @@ export default function ConfigPage() {
           <label className='flex items-start gap-2 text-sm'>
             <input
               type='checkbox'
-              checked={Boolean(config.ip_location?.use_hiofd)}
-              onChange={(e) => update(['ip_location', 'use_hiofd'], e.target.checked)}
+              checked={Boolean(config.ip_location?.use_geocache)}
+              onChange={(e) => update(['ip_location', 'use_geocache'], e.target.checked)}
               className='mt-1'
             />
             <div className='flex-1'>

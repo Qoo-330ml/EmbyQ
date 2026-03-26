@@ -24,8 +24,10 @@ class WebServer:
         if location_service:
             self.location_service = location_service
         else:
-            use_hiofd = config.get('ip_location', {}).get('use_hiofd', False)
-            self.location_service = LocationService(use_hiofd=use_hiofd, db_manager=db_manager)
+            use_geocache = config.get('ip_location', {}).get('use_geocache', False)
+            # 获取Emby服务器信息
+            emby_server_info = self.emby_client.get_server_info()
+            self.location_service = LocationService(use_hiofd=use_geocache, db_manager=db_manager, emby_server_info=emby_server_info)
         
         # 保存 monitor 实例，用于复用会话数据
         self.monitor = monitor
@@ -342,16 +344,16 @@ class WebServer:
                     new_config['web'] = {}
 
                 # 检查 IP 解析方式是否变化
-                old_use_hiofd = self.config.get('ip_location', {}).get('use_hiofd', False)
-                new_use_hiofd = new_config.get('ip_location', {}).get('use_hiofd', False)
+                old_use_geocache = self.config.get('ip_location', {}).get('use_geocache', False)
+                new_use_geocache = new_config.get('ip_location', {}).get('use_geocache', False)
                 
                 if save_config(new_config):
                     self.config = load_config()
                     
                     # 如果 IP 解析方式有变化，更新 location_service
-                    if old_use_hiofd != new_use_hiofd:
-                        self.location_service.update_config(new_use_hiofd)
-                        print(f"📍 IP解析方式已更新: {'自建库' if new_use_hiofd else 'IP138'}")
+                    if old_use_geocache != new_use_geocache:
+                        self.location_service.update_config(new_use_geocache)
+                        print(f"📍 IP解析方式已更新: {'自建库' if new_use_geocache else 'IP138'}")
                     
                     return jsonify({'success': True})
                 return jsonify({'error': '保存配置失败'}), 500

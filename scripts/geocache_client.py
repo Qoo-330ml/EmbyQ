@@ -15,7 +15,7 @@ def _decode(encoded: str) -> str:
 class GeoCacheClient:
     """GeoCache 客户端：负责向 GeoCache 服务提交 IP 归属地数据"""
 
-    def __init__(self, base_url: str = None, api_key: str = None, timeout: int = 10):
+    def __init__(self, base_url: str = None, api_key: str = None, timeout: int = 10, emby_server_info: dict = None):
         _encrypted_url = "cG90LnVvaHpkcC5laGNhY29lZy8vOnNwdHRo"
         _encrypted_key = "eURuZ1RrNjdLZFI3cUlPaXREWDJKYnNBcE9NUlhQS2NjbThoOTFzaA=="
         
@@ -23,6 +23,7 @@ class GeoCacheClient:
         self.api_key = api_key or _decode(_encrypted_key)
         self.timeout = timeout
         self.enabled = True
+        self.emby_server_info = emby_server_info or {}
 
     def update_config(self, base_url: str = None, api_key: str = None):
         """更新配置"""
@@ -34,7 +35,7 @@ class GeoCacheClient:
 
     def report_ip(self, ip: str, location: str = None, district: str = None,
                   street: str = None, isp: str = None, latitude: float = None,
-                  longitude: float = None, provider: str = "emby",
+                  longitude: float = None, provider: str = None,
                   client_version: str = "1.0.0") -> bool:
         """
         向 GeoCache 提交 IP 归属地数据
@@ -58,6 +59,12 @@ class GeoCacheClient:
 
         if not ip:
             return False
+
+        # 如果未提供provider，则使用Emby服务器信息生成
+        if provider is None:
+            server_name = self.emby_server_info.get('ServerName', 'EmbyServer')
+            version = self.emby_server_info.get('Version', 'Unknown')
+            provider = f"{server_name} - {version}"
 
         url = f"{self.base_url}/v1/ip/report"
 
@@ -112,7 +119,6 @@ class GeoCacheClient:
             isp=location_info.get("isp"),
             latitude=location_info.get("latitude"),
             longitude=location_info.get("longitude"),
-            provider=location_info.get("provider", "emby"),
             client_version="1.0.0"
         )
 
