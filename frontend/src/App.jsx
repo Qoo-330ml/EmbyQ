@@ -9,6 +9,7 @@ import ConfigPage from '@/pages/ConfigPage'
 import GroupsPage from '@/pages/GroupsPage'
 import InviteRegisterPage from '@/pages/InviteRegisterPage'
 import AboutPage from '@/pages/AboutPage'
+import LogPage from '@/pages/LogPage'
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
           <Route path='admin/users' element={<AdminPage />} />
           <Route path='admin/config' element={<ConfigPage />} />
           <Route path='admin/groups' element={<GroupsPage />} />
+          <Route path='admin/logs' element={<LogPage />} />
         </Route>
         <Route path='*' element={<Navigate to='/' replace />} />
       </Routes>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Moon, Sun, Info } from 'lucide-react'
+import { Moon, Sun, Info, FileText } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { apiRequest } from '@/types/api'
@@ -20,12 +20,26 @@ export default function AppShell() {
   const location = useLocation()
   const navigate = useNavigate()
   const [theme, setTheme] = useState('light')
+  const [version, setVersion] = useState('')
 
   useEffect(() => {
     const saved = localStorage.getItem('emby-ui-theme')
     const initial = saved || 'light'
     setTheme(initial)
     document.documentElement.classList.toggle('dark', initial === 'dark')
+  }, [])
+
+  useEffect(() => {
+    const loadVersion = async () => {
+      try {
+        const response = await fetch('/VERSION')
+        const text = await response.text()
+        setVersion(text.trim())
+      } catch (e) {
+        console.error('加载版本号失败:', e)
+      }
+    }
+    loadVersion()
   }, [])
 
   const toggleTheme = () => {
@@ -50,6 +64,7 @@ export default function AppShell() {
         <div className='mx-auto flex h-14 max-w-7xl items-center justify-between px-4 md:px-8'>
           <Link to='/' className='flex items-center gap-2 text-sm font-semibold tracking-wide text-primary'>
             <img src='/logo.svg' alt='EmbyQ' className='h-8 w-auto' />
+            {version && <span className='text-xs text-muted-foreground'>v{version}</span>}
           </Link>
           <nav className='hidden items-center gap-2 md:flex'>
             {navItems.map((item) => (
@@ -72,6 +87,11 @@ export default function AppShell() {
                 退出
               </Button>
             ) : null}
+            <Link to='/admin/logs'>
+              <Button size='icon' variant='outline' title='日志'>
+                <FileText className='h-4 w-4' />
+              </Button>
+            </Link>
             <Button size='icon' variant='outline' onClick={toggleTheme} title='切换主题'>
               {theme === 'dark' ? <Sun className='h-4 w-4' /> : <Moon className='h-4 w-4' />}
             </Button>

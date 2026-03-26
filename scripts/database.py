@@ -540,3 +540,25 @@ class DatabaseManager:
             deleted_count = cursor.rowcount
             conn.commit()
             return deleted_count
+
+    def get_security_logs(self, limit=100):
+        """获取安全日志，按照时间正序排列"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute('''
+                SELECT id, timestamp, user_id, username, trigger_ip, active_sessions, action
+                FROM security_log
+                ORDER BY timestamp ASC
+                LIMIT ?
+            ''', (limit,))
+            logs = []
+            for row in cursor.fetchall():
+                logs.append({
+                    'id': row[0],
+                    'timestamp': row[1],
+                    'user_id': row[2],
+                    'username': row[3],
+                    'trigger_ip': row[4],
+                    'active_sessions': row[5],
+                    'action': row[6]
+                })
+            return logs

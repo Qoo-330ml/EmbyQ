@@ -515,6 +515,33 @@ class WebServer:
             except Exception as exc:
                 return jsonify({'error': f'读取 README 失败: {exc}'}), 500
 
+        @self.app.get('/ABOUT.md')
+        def serve_about():
+            try:
+                about_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'ABOUT.md')
+                with open(about_path, 'r', encoding='utf-8') as f:
+                    return f.read(), 200, {'Content-Type': 'text/markdown; charset=utf-8'}
+            except Exception as exc:
+                return jsonify({'error': f'读取 ABOUT 失败: {exc}'}), 500
+
+        @self.app.get('/VERSION')
+        def serve_version():
+            try:
+                version_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'VERSION')
+                with open(version_path, 'r', encoding='utf-8') as f:
+                    return f.read(), 200, {'Content-Type': 'text/plain; charset=utf-8'}
+            except Exception as exc:
+                return jsonify({'error': f'读取 VERSION 失败: {exc}'}), 500
+
+        @self.app.get('/api/admin/logs')
+        @login_required
+        def admin_logs():
+            try:
+                logs = self.db_manager.get_security_logs(limit=500)
+                return jsonify({'logs': logs})
+            except Exception as exc:
+                return jsonify({'error': f'获取日志失败: {exc}'}), 500
+
         @self.app.get('/', defaults={'path': ''})
         @self.app.get('/<path:path>')
         def serve_spa(path):

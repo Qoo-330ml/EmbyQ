@@ -28,6 +28,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # App files
 COPY scripts/ ./scripts/
 COPY data/ ./data/
+COPY README.md ./
+COPY VERSION ./
+COPY ABOUT.md ./
 
 # Frontend dist for SPA hosting
 COPY --from=frontend-builder /frontend/dist ./frontend/dist

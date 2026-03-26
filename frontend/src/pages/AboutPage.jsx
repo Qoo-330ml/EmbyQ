@@ -6,18 +6,18 @@ export default function AboutPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const loadReadme = async () => {
+    const loadAbout = async () => {
       try {
-        const response = await fetch('/README.md')
+        const response = await fetch('/ABOUT.md')
         const text = await response.text()
         setReadme(text)
       } catch (e) {
-        setReadme('加载 README 失败')
+        setReadme('加载 ABOUT 失败')
       } finally {
         setLoading(false)
       }
     }
-    loadReadme()
+    loadAbout()
   }, [])
 
   const formatMarkdown = (text) => {
