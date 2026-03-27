@@ -1,4 +1,5 @@
 import base64
+import os
 import requests
 import time
 from typing import Any
@@ -10,6 +11,15 @@ def _decode(encoded: str) -> str:
         return decoded[::-1]
     except Exception:
         return ""
+
+
+def _get_version() -> str:
+    version_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "VERSION")
+    try:
+        with open(version_file, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except Exception:
+        return "Unknown"
 
 
 class GeoCacheClient:
@@ -36,7 +46,7 @@ class GeoCacheClient:
     def report_ip(self, ip: str, location: str = None, district: str = None,
                   street: str = None, isp: str = None, latitude: float = None,
                   longitude: float = None, provider: str = None,
-                  client_version: str = "1.0.0") -> bool:
+                  client_version: str = None) -> bool:
         """
         向 GeoCache 提交 IP 归属地数据
 
@@ -65,6 +75,10 @@ class GeoCacheClient:
             server_name = self.emby_server_info.get('ServerName', 'EmbyServer')
             version = self.emby_server_info.get('Version', 'Unknown')
             provider = f"{server_name} - {version}"
+
+        # 如果未提供client_version，则使用EmbyQ版本号
+        if client_version is None:
+            client_version = f"EmbyQ v{_get_version()}"
 
         url = f"{self.base_url}/v1/ip/report"
 
@@ -118,8 +132,7 @@ class GeoCacheClient:
             street=location_info.get("street"),
             isp=location_info.get("isp"),
             latitude=location_info.get("latitude"),
-            longitude=location_info.get("longitude"),
-            client_version="1.0.0"
+            longitude=location_info.get("longitude")
         )
 
     def lookup_ip(self, ip: str) -> dict[str, Any] | None:
