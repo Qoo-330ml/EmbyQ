@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="50" height="44" viewBox="0 0 50 44" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="44" viewBox="0 0 120 44" fill="none">
   <defs>
     <linearGradient id="shieldGrad" x1="6" y1="4" x2="38" y2="40" gradientUnits="userSpaceOnUse">
       <stop stop-color="#3B82F6"/>
@@ -10,6 +10,8 @@
   <path d="M22 4L38 10V21C38 29.2 31.7 36.6 22 40C12.3 36.6 6 29.2 6 21V10L22 4Z" fill="url(#shieldGrad)"/>
   <path d="M22 11L31 14.4V21C31 26.1 27.3 30.7 22 33C16.7 30.7 13 26.1 13 21V14.4L22 11Z" fill="#EFF6FF" opacity="0.95"/>
 
+  <!-- 艺术斜体文字 -->
+  <text x="50" y="28" fill="#111827" font-size="18" font-family="Inter, Segoe UI, Arial, sans-serif" font-weight="700" font-style="italic" letter-spacing="0.5px">EmbyQ</text>
 
   <!-- Emby 图标 + 白色外轮廓 -->
   <!-- 白色轮廓层 -->
