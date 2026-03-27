@@ -1,41 +1,48 @@
-import os
 import shutil
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Dict, Tuple
+
 import yaml
 
-def get_base_dir():
-    """获取项目根目录（EmbyQ目录）"""
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-def get_scripts_dir():
-    """获取scripts目录路径"""
-    return os.path.dirname(os.path.abspath(__file__))
+@lru_cache(maxsize=None)
+def get_base_dir() -> Path:
+    return Path(__file__).resolve().parent.parent
 
-def get_data_dir():
-    """获取data目录路径"""
-    return os.path.join(get_base_dir(), 'data')
 
-DEFAULT_CONFIG = {
+@lru_cache(maxsize=None)
+def get_scripts_dir() -> Path:
+    return Path(__file__).resolve().parent
+
+
+@lru_cache(maxsize=None)
+def get_data_dir() -> Path:
+    return get_base_dir() / 'data'
+
+
+DEFAULT_CONFIG: Dict[str, Any] = {
     'emby': {
         'server_url': 'https://emby.example.com',
         'external_url': 'https://emby.example.com',
-        'api_key': 'your_api_key_here'
+        'api_key': 'your_api_key_here',
     },
     'service': {
-        'external_url': 'https://embyq.example.com:5000'
+        'external_url': 'https://embyq.example.com:5000',
     },
     'database': {
-        'name': 'emby_playback.db'
+        'name': 'emby_playback.db',
     },
     'monitor': {
-        'check_interval': 10
+        'check_interval': 10,
     },
     'notifications': {
         'enable_alerts': True,
-        'alert_threshold': 2
+        'alert_threshold': 2,
     },
     'security': {
         'auto_disable': True,
-        'whitelist': ["admin", "user1", "user2"]
+        'whitelist': ['admin', 'user1', 'user2'],
     },
     'webhook': {
         'enabled': False,
@@ -43,102 +50,91 @@ DEFAULT_CONFIG = {
         'timeout': 10,
         'retry_attempts': 3,
         'title': 'Emby用户封禁通知',
-        'content_template': '用户 {username} 在 {location} 使用 {ip_address} ({ip_type}) 登录，检测到 {session_count} 个并发会话，已自动封禁。'
+        'content_template': '用户 {username} 在 {location} 使用 {ip_address} ({ip_type}) 登录，检测到 {session_count} 个并发会话，已自动封禁。',
     },
     'ip_location': {
-        'use_geocache': False
-    }
+        'use_geocache': False,
+    },
 }
 
-def load_config():
-    """加载配置并管理依赖文件"""
+
+def load_config() -> Tuple[Dict[str, Any], list]:
     data_dir = get_data_dir()
     scripts_dir = get_scripts_dir()
     
-    # 确保data目录存在
-    os.makedirs(data_dir, exist_ok=True)
+    data_dir.mkdir(parents=True, exist_ok=True)
     
-    # 检查default_config.yaml是否存在
-    default_config_path = os.path.join(scripts_dir, 'default_config.yaml')
-    if not os.path.exists(default_config_path):
+    default_config_path = scripts_dir / 'default_config.yaml'
+    if not default_config_path.exists():
         print("❌ default_config.yaml文件不存在")
-        exit(1)
+        raise SystemExit(1)
     
-    # 检查data目录下的config.yaml是否存在
-    config_file = os.path.join(data_dir, 'config.yaml')
-    if not os.path.exists(config_file):
-        # 如果不存在，从default_config.yaml复制
-        shutil.copy2(default_config_path, config_file)
-        print(f"📄 配置文件已生成于: {config_file}，请填写必要项后重启容器")
+    user_config_path = data_dir / 'config.yaml'
+    if not user_config_path.exists():
+        shutil.copy2(default_config_path, user_config_path)
+        print(f"📄 配置文件已生成于: {user_config_path}")
     
-    # 加载用户配置
-    with open(config_file, 'r', encoding='utf-8') as f:
+    with open(user_config_path, 'r', encoding='utf-8') as f:
         user_config = yaml.safe_load(f) or {}
     
-    # 兼容旧配置：emby.check_interval -> monitor.check_interval
-    if user_config.get('emby', {}).get('check_interval') and not user_config.get('monitor', {}).get('check_interval'):
-        user_config.setdefault('monitor', {})['check_interval'] = user_config['emby']['check_interval']
+    config = _merge_config(DEFAULT_CONFIG, user_config)
+    missing = _validate_required_fields(config)
+    
+    return config, missing
 
-    # 深度合并配置
-    config = DEFAULT_CONFIG.copy()
-    for section in user_config:
-        if section in config and isinstance(config[section], dict) and isinstance(user_config[section], dict):
-            config[section].update(user_config[section])
-        else:
-            config[section] = user_config[section]
 
-    if 'service' not in config:
-        config['service'] = {'external_url': ''}
-    if 'external_url' not in config.get('emby', {}):
-        config['emby']['external_url'] = config['emby'].get('server_url', '')
-    
-    # 清理旧字段，避免双写
-    if 'check_interval' in config.get('emby', {}):
-        config['emby'].pop('check_interval', None)
-    
-    # 验证必要字段
-    required_fields = [
-        ('emby', 'server_url'),
-        ('emby', 'api_key')
-    ]
-    
-    missing = []
-    for section, field in required_fields:
-        if not config.get(section, {}).get(field):
-            missing.append(f"{section}.{field}")
-    
-    if missing:
-        print("❌ 缺失必要配置项：")
-        for item in missing:
-            print(f"  - {item}")
-        exit(1)
-    
-    return config
-
-def save_config(config):
-    """保存配置到文件"""
-    data_dir = get_data_dir()
-    config_file = os.path.join(data_dir, 'config.yaml')
+def save_config(config: Dict[str, Any]) -> bool:
+    config_path = get_data_dir() / 'config.yaml'
     
     try:
-        with open(config_file, 'w', encoding='utf-8') as f:
-            yaml.dump(config, f, default_flow_style=False, allow_unicode=True, indent=2)
+        with open(config_path, 'w', encoding='utf-8') as f:
+            yaml.dump(config, f, default_flow_style=False, allow_unicode=True, indent=2, sort_keys=False)
         return True
     except Exception as e:
         print(f"保存配置文件失败: {e}")
         return False
 
-def get_raw_config():
-    """获取原始配置文件内容（用于编辑）"""
-    data_dir = get_data_dir()
-    config_file = os.path.join(data_dir, 'config.yaml')
+
+def get_raw_config() -> str:
+    config_path = get_data_dir() / 'config.yaml'
     
-    if not os.path.exists(config_file):
+    if not config_path.exists():
         return ""
     
     try:
-        with open(config_file, 'r', encoding='utf-8') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             return f.read()
     except Exception as e:
         print(f"读取配置文件失败: {e}")
         return ""
+
+
+def is_config_valid(config: Dict[str, Any]) -> bool:
+    return len(_validate_required_fields(config)) == 0
+
+
+def _merge_config(default: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any]:
+    result = default.copy()
+    
+    for key, value in user.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _merge_config(result[key], value)
+        else:
+            result[key] = value
+    
+    return result
+
+
+def _validate_required_fields(config: Dict[str, Any]) -> list:
+    required_fields = [
+        ('emby', 'server_url'),
+        ('emby', 'api_key'),
+    ]
+    
+    missing = []
+    for section, field in required_fields:
+        value = config.get(section, {}).get(field)
+        if not value or (isinstance(value, str) and not value.strip()):
+            missing.append(f"{section}.{field}")
+    
+    return missing
