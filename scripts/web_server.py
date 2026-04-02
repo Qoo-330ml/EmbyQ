@@ -15,29 +15,41 @@ from logger import get_logs
 
 
 class WebServer:
-    def __init__(self, db_manager, emby_client, security_client, config, location_service=None, monitor=None):
+    def __init__(
+        self,
+        db_manager,
+        emby_client,
+        security_client,
+        config,
+        location_service=None,
+        monitor=None,
+        tmdb_client=None,
+        wish_store=None,
+    ):
         self.db_manager = db_manager
         self.emby_client = emby_client
         self.security_client = security_client
         self.config = config
-        
-        # 使用传入的 location_service 或创建新的
+        self.tmdb_client = tmdb_client
+        self.wish_store = wish_store
+
         if location_service:
             self.location_service = location_service
         else:
             use_geocache = config.get('ip_location', {}).get('use_geocache', False)
-            # 获取Emby服务器信息
             emby_server_info = self.emby_client.get_server_info()
-            self.location_service = LocationService(use_hiofd=use_geocache, db_manager=db_manager, emby_server_info=emby_server_info)
-        
-        # 保存 monitor 实例，用于复用会话数据
+            self.location_service = LocationService(
+                use_hiofd=use_geocache,
+                db_manager=db_manager,
+                emby_server_info=emby_server_info,
+            )
+
         self.monitor = monitor
 
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.frontend_dist = os.path.join(base_dir, 'frontend', 'dist')
         self.frontend_assets = os.path.join(self.frontend_dist, 'assets')
 
-        # 禁用 Flask 默认 static 根路由，避免与 SPA 深链接路由冲突（如 /admin/config 刷新 404）
         self.app = Flask(__name__, static_folder=None)
         self.app.secret_key = 'embyq_secret_key'
 
@@ -63,10 +75,12 @@ class WebServer:
 
         @self.app.get('/api/health')
         def health():
-            return jsonify({
-                'ok': True,
-                'frontend_built': os.path.exists(os.path.join(self.frontend_dist, 'index.html')),
-            })
+            return jsonify(
+                {
+                    'ok': True,
+                    'frontend_built': os.path.exists(os.path.join(self.frontend_dist, 'index.html')),
+                }
+            )
 
         @self.app.post('/api/auth/login')
         def api_login():
@@ -99,9 +113,9 @@ class WebServer:
         def public_active_sessions():
             sessions = self._get_all_active_sessions()
             groups_map = self._get_user_groups_map()
-            for s in sessions:
-                user_id = s.get('user_id')
-                s['groups'] = groups_map.get(user_id, []) if user_id else []
+            for session in sessions:
+                user_id = session.get('user_id')
+                session['groups'] = groups_map.get(user_id, []) if user_id else []
             return jsonify({'sessions': sessions})
 
         @self.app.get('/api/public/search')
@@ -122,15 +136,137 @@ class WebServer:
             active_sessions = self._get_user_active_sessions(user_id)
             user_groups = self._get_user_groups_map().get(user_id, [])
 
-            return jsonify({
-                'user_id': user_id,
-                'username': username,
-                'user_info': user_info,
-                'user_groups': user_groups,
-                'playback_records': playback_records,
-                'ban_info': ban_info,
-                'active_sessions': active_sessions,
-            })
+            return jsonify(
+                {
+                    'user_id': user_id,
+                    'username': username,
+                    'user_info': user_info,
+                    'user_groups': user_groups,
+                    'playback_records': playback_records,
+                    'ban_info': ban_info,
+                    'active_sessions': active_sessions,
+                }
+            )
+
+        @self.app.get('/api/public/tmdb/search')
+        def public_tmdb_search():
+            if not self._is_guest_request_enabled():
+                return jsonify({'error': '求片功能未启用'}), 403
+            if not self.tmdb_client:
+                return jsonify({'error': 'TMDB 客户端未初始化'}), 503
+
+            query = (request.args.get('q') or '').strip()
+            if not query:
+                return jsonify({'error': '请输入搜索关键词'}), 400
+
+            try:
+                page = request.args.get('page', 1)
+                search_payload = self.tmdb_client.search_multi(query, page=page)
+                results = search_payload.get('results') or []
+                if self.wish_store and results:
+                    request_map = self.wish_store.get_request_map(results)
+                    for item in results:
+                        lookup_key = f"{item.get('media_type')}:{item.get('tmdb_id')}"
+                        request_record = request_map.get(lookup_key)
+                        item['requested'] = bool(request_record)
+                        if request_record:
+                            item['request_id'] = request_record.get('id')
+                            item['request_status'] = request_record.get('status')
+                return jsonify(search_payload)
+            except RuntimeError as exc:
+                return jsonify({'error': str(exc)}), 503
+            except Exception as exc:
+                return jsonify({'error': f'TMDB 搜索失败: {exc}'}), 500
+
+        @self.app.get('/api/public/wishes')
+        def public_list_wishes():
+            if not self._is_guest_request_enabled():
+                return jsonify({'error': '求片功能未启用'}), 403
+            if not self.wish_store:
+                return jsonify({'error': '求片存储未初始化'}), 503
+
+            try:
+                page = request.args.get('page', 1)
+                page_size = request.args.get('page_size', 20)
+                return jsonify(self.wish_store.list_public_requests(page=page, page_size=page_size))
+            except Exception as exc:
+                return jsonify({'error': f'获取已求列表失败: {exc}'}), 500
+
+        @self.app.post('/api/public/wishes')
+        def public_create_wish():
+            if not self._is_guest_request_enabled():
+                return jsonify({'error': '求片功能未启用'}), 403
+            if not self.wish_store:
+                return jsonify({'error': '求片存储未初始化'}), 503
+
+            data = request.get_json(silent=True) or {}
+            item = data.get('item') if isinstance(data.get('item'), dict) else data
+            if not isinstance(item, dict):
+                return jsonify({'error': '请求参数错误'}), 400
+
+            submit_ip = self._get_client_ip()
+            daily_limit = self._get_guest_request_daily_limit()
+            if daily_limit > 0 and submit_ip:
+                recent_count = self.wish_store.count_recent_submissions_by_ip(
+                    submit_ip,
+                    datetime.now() - timedelta(days=1),
+                )
+                if recent_count >= daily_limit:
+                    return jsonify({'error': f'当前 IP 今日提交次数已达上限（{daily_limit}）'}), 429
+
+            try:
+                record = self.wish_store.add_request(item, submit_ip=submit_ip)
+                message = '已加入想看清单' if record.get('created') else '该内容已在求片清单中'
+                status_code = 201 if record.get('created') else 200
+                return jsonify({'success': True, 'request': record, 'message': message}), status_code
+            except ValueError as exc:
+                return jsonify({'error': str(exc)}), 400
+            except Exception as exc:
+                return jsonify({'error': f'保存求片失败: {exc}'}), 500
+
+        @self.app.get('/api/public/invite/<code>')
+        def public_get_invite(code):
+            available, message = self.db_manager.is_invite_available(code)
+            if not available:
+                return jsonify({'error': message}), 404
+
+            invite = self.db_manager.get_invite_by_code(code)
+            if not invite:
+                return jsonify({'error': '邀请不存在'}), 404
+
+            return jsonify({'invite': invite})
+
+        @self.app.post('/api/public/invite/<code>/register')
+        def public_register_invite(code):
+            available, message = self.db_manager.is_invite_available(code)
+            if not available:
+                return jsonify({'error': message}), 400
+
+            data = request.get_json(silent=True) or {}
+            username = (data.get('username') or '').strip()
+            password = (data.get('password') or '').strip() or username
+            if not username:
+                return jsonify({'error': '请输入用户名'}), 400
+
+            invite = self.db_manager.get_invite_by_code(code)
+            if not invite:
+                return jsonify({'error': '邀请不存在'}), 404
+
+            user_id, create_error = self.emby_client.create_user(username, password)
+            if create_error:
+                return jsonify({'error': create_error}), 500
+
+            try:
+                if invite.get('group_id'):
+                    self.db_manager.add_user_to_group(invite['group_id'], user_id)
+                if invite.get('account_expiry_date'):
+                    self.db_manager.set_user_expiry(user_id, invite['account_expiry_date'], False)
+                self.db_manager.consume_invite(code)
+            except Exception as exc:
+                return jsonify({'error': f'注册成功但后续处理失败: {exc}'}), 500
+
+            redirect_url = (self.config.get('emby', {}).get('external_url') or '').rstrip('/')
+            return jsonify({'success': True, 'redirect_url': redirect_url})
 
         @self.app.get('/api/admin/users')
         @login_required
@@ -162,9 +298,8 @@ class WebServer:
 
             if template_user_id:
                 policy = self.emby_client.get_user_policy(template_user_id)
-                if policy:
-                    if not self.emby_client.set_user_policy(user_id, policy):
-                        return jsonify({'error': '用户已创建，但复制模板权限失败'}), 500
+                if policy and not self.emby_client.set_user_policy(user_id, policy):
+                    return jsonify({'error': '用户已创建，但复制模板权限失败'}), 500
 
             for group_id in group_ids:
                 try:
@@ -197,7 +332,7 @@ class WebServer:
 
             success = self.security_client.disable_user(user_id) if action == 'ban' else self.security_client.enable_user(user_id)
             if not success:
-                return jsonify({'error': f'用户{ "封禁" if action == "ban" else "解封" }失败'}), 500
+                return jsonify({'error': f'用户{"封禁" if action == "ban" else "解封"}失败'}), 500
 
             return jsonify({'success': True})
 
@@ -324,6 +459,36 @@ class WebServer:
 
             return jsonify({'success': True, 'success_count': success_count, 'fail_count': fail_count})
 
+        @self.app.get('/api/admin/wishes')
+        @login_required
+        def admin_list_wishes():
+            if not self.wish_store:
+                return jsonify({'error': '求片存储未初始化'}), 503
+            status = (request.args.get('status') or '').strip()
+            return jsonify({'requests': self.wish_store.list_requests(status=status)})
+
+        @self.app.patch('/api/admin/wishes/<int:request_id>/status')
+        @login_required
+        def admin_update_wish_status(request_id):
+            if not self.wish_store:
+                return jsonify({'error': '求片存储未初始化'}), 503
+            data = request.get_json(silent=True) or {}
+            status = (data.get('status') or '').strip()
+            try:
+                record = self.wish_store.update_request_status(request_id, status)
+                if not record:
+                    return jsonify({'error': '求片记录不存在'}), 404
+                return jsonify({'success': True, 'request': record})
+            except ValueError as exc:
+                return jsonify({'error': str(exc)}), 400
+            except Exception as exc:
+                return jsonify({'error': f'更新状态失败: {exc}'}), 500
+
+        @self.app.get('/api/admin/logs')
+        @login_required
+        def admin_logs():
+            return jsonify({'logs': get_logs()})
+
         @self.app.get('/api/admin/config')
         @login_required
         def admin_get_config():
@@ -344,18 +509,15 @@ class WebServer:
                 if 'web' not in new_config:
                     new_config['web'] = {}
 
-                # 检查 IP 解析方式是否变化
                 old_use_geocache = self.config.get('ip_location', {}).get('use_geocache', False)
                 new_use_geocache = new_config.get('ip_location', {}).get('use_geocache', False)
-                
+
                 if save_config(new_config):
                     self.config = load_config()
-                    
-                    # 如果 IP 解析方式有变化，更新 location_service
                     if old_use_geocache != new_use_geocache:
                         self.location_service.update_config(new_use_geocache)
-                        print(f"📍 IP解析方式已更新: {'自建库' if new_use_geocache else 'IP138'}")
-                    
+                    if self.tmdb_client:
+                        self.tmdb_client.update_config(self.config.get('tmdb', {}))
                     return jsonify({'success': True})
                 return jsonify({'error': '保存配置失败'}), 500
             except yaml.YAMLError as exc:
@@ -368,13 +530,58 @@ class WebServer:
         def admin_groups():
             return jsonify({'groups': self.db_manager.get_all_user_groups()})
 
+        @self.app.post('/api/admin/groups')
+        @login_required
+        def admin_create_group():
+            data = request.get_json(silent=True) or {}
+            name = (data.get('name') or '').strip()
+            if not name:
+                return jsonify({'error': '请输入用户组名称'}), 400
+
+            group_id = f'group_{datetime.now().strftime("%Y%m%d%H%M%S%f")}'
+            try:
+                self.db_manager.create_user_group(group_id, name)
+                return jsonify({'success': True, 'group': {'id': group_id, 'name': name, 'members': []}})
+            except Exception as exc:
+                return jsonify({'error': f'创建用户组失败: {exc}'}), 500
+
+        @self.app.delete('/api/admin/groups/<group_id>')
+        @login_required
+        def admin_delete_group(group_id):
+            try:
+                self.db_manager.delete_user_group(group_id)
+                return jsonify({'success': True})
+            except Exception as exc:
+                return jsonify({'error': f'删除用户组失败: {exc}'}), 500
+
+        @self.app.post('/api/admin/groups/<group_id>/members')
+        @login_required
+        def admin_add_group_member(group_id):
+            data = request.get_json(silent=True) or {}
+            user_id = (data.get('user_id') or '').strip()
+            if not user_id:
+                return jsonify({'error': '请选择用户'}), 400
+            added = self.db_manager.add_user_to_group(group_id, user_id)
+            if not added:
+                return jsonify({'error': '用户已在该组中'}), 400
+            return jsonify({'success': True})
+
+        @self.app.delete('/api/admin/groups/<group_id>/members/<user_id>')
+        @login_required
+        def admin_remove_group_member(group_id, user_id):
+            try:
+                self.db_manager.remove_user_from_group(group_id, user_id)
+                return jsonify({'success': True})
+            except Exception as exc:
+                return jsonify({'error': f'移除组成员失败: {exc}'}), 500
+
         @self.app.get('/api/admin/invites')
         @login_required
         def admin_list_invites():
             invites = self.db_manager.list_invites()
             service_url = (self.config.get('service', {}).get('external_url') or '').rstrip('/')
-            for inv in invites:
-                inv['invite_url'] = f"{service_url}/invite/{inv['code']}" if service_url else f"/invite/{inv['code']}"
+            for invite in invites:
+                invite['invite_url'] = f'{service_url}/invite/{invite["code"]}' if service_url else f'/invite/{invite["code"]}'
             return jsonify({'invites': invites})
 
         @self.app.delete('/api/admin/invites/<code>')
@@ -392,9 +599,6 @@ class WebServer:
             group_id = (data.get('group_id') or '').strip() or None
             account_expiry_date = (data.get('account_expiry_date') or '').strip() or None
 
-            if valid_hours <= 0 or max_uses <= 0:
-                return jsonify({'error': '参数错误'}), 400
-
             try:
                 invite = self.db_manager.create_invite(
                     valid_hours=valid_hours,
@@ -403,374 +607,203 @@ class WebServer:
                     account_expiry_date=account_expiry_date,
                     created_by='admin',
                 )
+                service_url = (self.config.get('service', {}).get('external_url') or '').rstrip('/')
+                invite_url = f'{service_url}/invite/{invite["code"]}' if service_url else f'/invite/{invite["code"]}'
+                invite['invite_url'] = invite_url
+                return jsonify({'success': True, 'invite': invite, 'invite_url': invite_url})
             except Exception as exc:
-                return jsonify({'error': str(exc)}), 500
-
-            service_url = (self.config.get('service', {}).get('external_url') or '').rstrip('/')
-            invite_url = f"{service_url}/invite/{invite['code']}" if service_url else f"/invite/{invite['code']}"
-
-            return jsonify({'invite': invite, 'invite_url': invite_url})
-
-        @self.app.post('/api/admin/groups')
-        @login_required
-        def admin_create_group():
-            data = request.get_json(silent=True) or {}
-            name = (data.get('name') or '').strip()
-            group_id = (data.get('group_id') or f'group_{int(datetime.now().timestamp() * 1000)}').strip()
-            if not name:
-                return jsonify({'error': '请输入用户组名称'}), 400
-            try:
-                self.db_manager.create_user_group(group_id, name)
-                return jsonify({'success': True, 'group_id': group_id})
-            except Exception as exc:
-                return jsonify({'error': str(exc)}), 500
-
-        @self.app.delete('/api/admin/groups/<group_id>')
-        @login_required
-        def admin_delete_group(group_id):
-            try:
-                self.db_manager.delete_user_group(group_id)
-                return jsonify({'success': True})
-            except Exception as exc:
-                return jsonify({'error': str(exc)}), 500
-
-        @self.app.post('/api/admin/groups/<group_id>/members')
-        @login_required
-        def admin_add_group_member(group_id):
-            data = request.get_json(silent=True) or {}
-            user_id = data.get('user_id')
-            if not user_id:
-                return jsonify({'error': '参数错误'}), 400
-            try:
-                result = self.db_manager.add_user_to_group(group_id, user_id)
-                if result:
-                    return jsonify({'success': True})
-                return jsonify({'error': '成员已在组中'}), 400
-            except Exception as exc:
-                return jsonify({'error': str(exc)}), 500
-
-        @self.app.delete('/api/admin/groups/<group_id>/members/<user_id>')
-        @login_required
-        def admin_remove_group_member(group_id, user_id):
-            try:
-                self.db_manager.remove_user_from_group(group_id, user_id)
-                return jsonify({'success': True})
-            except Exception as exc:
-                return jsonify({'error': str(exc)}), 500
-
-        @self.app.get('/api/public/invite/<code>')
-        def public_invite_info(code):
-            available, message = self.db_manager.is_invite_available(code)
-            if not available:
-                return jsonify({'error': message}), 400
-            invite = self.db_manager.get_invite_by_code(code)
-            return jsonify({'invite': invite})
-
-        @self.app.post('/api/public/invite/<code>/register')
-        def public_invite_register(code):
-            data = request.get_json(silent=True) or {}
-            username = (data.get('username') or '').strip()
-            password = (data.get('password') or '').strip() or username
-
-            if not username:
-                return jsonify({'error': '请输入用户名'}), 400
-
-            available, message = self.db_manager.is_invite_available(code)
-            if not available:
-                return jsonify({'error': message}), 400
-
-            user_id, error = self.emby_client.create_user(username, password)
-            if error:
-                return jsonify({'error': error}), 500
-
-            invite = self.db_manager.get_invite_by_code(code)
-            if invite and invite.get('group_id'):
-                try:
-                    self.db_manager.add_user_to_group(invite['group_id'], user_id)
-                except Exception:
-                    pass
-
-            if invite and invite.get('account_expiry_date'):
-                try:
-                    self.db_manager.set_user_expiry(user_id, invite['account_expiry_date'], False)
-                except Exception:
-                    pass
-
-            self.db_manager.consume_invite(code)
-
-            redirect_url = (self.config.get('emby', {}).get('external_url') or '').strip() or \
-                (self.config.get('emby', {}).get('server_url') or '').strip()
-
-            return jsonify({'success': True, 'redirect_url': redirect_url})
+                return jsonify({'error': f'生成邀请链接失败: {exc}'}), 500
 
         @self.app.get('/assets/<path:filename>')
         def serve_assets(filename):
             return send_from_directory(self.frontend_assets, filename)
 
-        @self.app.get('/README.md')
-        def serve_readme():
-            try:
-                readme_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'README.md')
-                with open(readme_path, 'r', encoding='utf-8') as f:
-                    return f.read(), 200, {'Content-Type': 'text/markdown; charset=utf-8'}
-            except Exception as exc:
-                return jsonify({'error': f'读取 README 失败: {exc}'}), 500
+        @self.app.get('/logo.svg')
+        def serve_logo():
+            return send_from_directory(self.frontend_dist, 'logo.svg')
 
-        @self.app.get('/ABOUT.md')
-        def serve_about():
-            try:
-                about_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'ABOUT.md')
-                with open(about_path, 'r', encoding='utf-8') as f:
-                    return f.read(), 200, {'Content-Type': 'text/markdown; charset=utf-8'}
-            except Exception as exc:
-                return jsonify({'error': f'读取 ABOUT 失败: {exc}'}), 500
+        @self.app.get('/favicon.svg')
+        def serve_favicon():
+            return send_from_directory(self.frontend_dist, 'favicon.svg')
+
+        @self.app.get('/icons.svg')
+        def serve_icons():
+            return send_from_directory(self.frontend_dist, 'icons.svg')
+
+        @self.app.get('/emby-upload.jpg')
+        def serve_emby_upload():
+            return send_from_directory(self.frontend_dist, 'emby-upload.jpg')
 
         @self.app.get('/VERSION')
         def serve_version():
-            try:
-                version_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'VERSION')
-                with open(version_path, 'r', encoding='utf-8') as f:
-                    return f.read(), 200, {'Content-Type': 'text/plain; charset=utf-8'}
-            except Exception as exc:
-                return jsonify({'error': f'读取 VERSION 失败: {exc}'}), 500
+            return send_from_directory(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'VERSION')
 
-        @self.app.get('/api/admin/logs')
-        @login_required
-        def admin_logs():
-            try:
-                logs = get_logs()
-                return jsonify({'logs': logs})
-            except Exception as exc:
-                return jsonify({'error': f'获取日志失败: {exc}'}), 500
+        @self.app.get('/ABOUT.md')
+        def serve_about():
+            return send_from_directory(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'ABOUT.md')
 
-        @self.app.get('/', defaults={'path': ''})
+        @self.app.get('/')
+        def serve_home():
+            return send_from_directory(self.frontend_dist, 'index.html')
+
         @self.app.get('/<path:path>')
         def serve_spa(path):
             if path.startswith('api/'):
                 return jsonify({'error': '接口不存在'}), 404
 
-            target = os.path.join(self.frontend_dist, path)
-            if path and os.path.exists(target) and os.path.isfile(target):
+            candidate = os.path.join(self.frontend_dist, path)
+            if os.path.exists(candidate) and os.path.isfile(candidate):
                 return send_from_directory(self.frontend_dist, path)
-
-            index_file = os.path.join(self.frontend_dist, 'index.html')
-            if os.path.exists(index_file):
-                return send_from_directory(self.frontend_dist, 'index.html')
-
-            return jsonify({
-                'error': '前端尚未构建，请先在 frontend 目录执行 npm run build',
-                'frontend_dist': self.frontend_dist,
-            }), 503
-
-    def _get_user_groups_map(self):
-        """构建用户ID -> 组名列表映射"""
-        mapping = {}
-        try:
-            for group in self.db_manager.get_all_user_groups():
-                group_name = group.get('name')
-                for uid in group.get('members', []):
-                    mapping.setdefault(uid, []).append(group_name)
-        except Exception:
-            return {}
-        return mapping
-
-    def _serialize_playback_records(self, rows: list[Any]):
-        records = []
-        for row in rows or []:
-            records.append({
-                'session_id': row[0],
-                'ip_address': row[1],
-                'device_name': row[2],
-                'client_type': row[3],
-                'media_name': row[4],
-                'start_time': row[5],
-                'end_time': row[6],
-                'duration': row[7],
-                'location': row[8],
-            })
-        return records
-
-    def _serialize_ban_info(self, row: Any):
-        if not row:
-            return None
-        return {
-            'timestamp': row[0],
-            'trigger_ip': row[1],
-            'active_sessions': row[2],
-            'action': row[3],
-        }
-
-    def _get_user_playback_records(self, user_id=None, username=None, limit=10):
-        try:
-            if user_id:
-                return self.db_manager.get_user_playback_records(user_id, limit)
-            if username:
-                return self.db_manager.get_playback_records_by_username(username, limit)
-            return []
-        except Exception as exc:
-            print(f'获取播放记录失败: {exc}')
-            return []
-
-    def _get_user_active_sessions(self, user_id):
-        try:
-            # 如果有 monitor 实例，直接复用其 active_sessions 数据
-            if self.monitor and hasattr(self.monitor, 'active_sessions'):
-                return [
-                    session_data
-                    for session_data in self.monitor.active_sessions.values()
-                    if session_data.get('user_id') == user_id
-                ]
-            
-            # 否则使用原来的逻辑（向后兼容）
-            all_sessions = self.emby_client.get_active_sessions()
-            user_sessions = []
-            for session_id, session in all_sessions.items():
-                if session.get('UserId') == user_id:
-                    media_item = session.get('NowPlayingItem', {})
-                    media_name = self.emby_client.parse_media_info(media_item)
-                    ip_address = session.get('RemoteEndPoint', '未知IP').split(':')[0]
-                    location = self._get_location(ip_address)
-                    user_sessions.append({
-                        'session_id': session_id,
-                        'ip_address': ip_address,
-                        'location': location,
-                        'device': session.get('DeviceName', '未知设备'),
-                        'client': session.get('Client', '未知客户端'),
-                        'media': media_name,
-                    })
-            return user_sessions
-        except Exception as exc:
-            print(f'获取用户活跃会话失败: {exc}')
-            return []
-
-    def _get_all_active_sessions(self):
-        try:
-            # 如果有 monitor 实例，直接复用其 active_sessions 数据
-            # 这样可以确保终端日志和网页显示使用相同的数据源
-            if self.monitor and hasattr(self.monitor, 'active_sessions'):
-                return list(self.monitor.active_sessions.values())
-            
-            # 否则使用原来的逻辑（向后兼容）
-            all_sessions = self.emby_client.get_active_sessions()
-            active_sessions = []
-            for session_id, session in all_sessions.items():
-                media_item = session.get('NowPlayingItem', {})
-                media_name = self.emby_client.parse_media_info(media_item)
-                ip_address = session.get('RemoteEndPoint', '未知IP').split(':')[0]
-                location = self._get_location(ip_address)
-                active_sessions.append({
-                    'session_id': session_id,
-                    'user_id': session.get('UserId'),
-                    'username': session.get('UserName', '未知用户'),
-                    'ip_address': ip_address,
-                    'location': location,
-                    'device': session.get('DeviceName', '未知设备'),
-                    'client': session.get('Client', '未知客户端'),
-                    'media': media_name,
-                })
-            return active_sessions
-        except Exception as exc:
-            print(f'获取所有活跃会话失败: {exc}')
-            return []
-
-    def _get_location(self, ip_address):
-        if not ip_address:
-            return '未知位置'
-
-        try:
-            info = self.location_service.lookup(ip_address)
-            return info.get('formatted', '未知位置')
-        except Exception as exc:
-            print(f'📍 解析 {ip_address} 失败: {exc}')
-            return '解析失败'
-
-    def _get_user_ban_info(self, user_id=None, username=None):
-        try:
-            if user_id:
-                return self.db_manager.get_user_ban_info(user_id)
-            if username:
-                return self.db_manager.get_ban_info_by_username(username)
-            return None
-        except Exception as exc:
-            print(f'获取封禁信息失败: {exc}')
-            return None
-
-    def _get_user_id_by_username(self, username):
-        try:
-            users = self.emby_client.get_users()
-            for user in users:
-                if user.get('Name') == username:
-                    return user.get('Id')
-            return None
-        except Exception as exc:
-            print(f'通过用户名获取用户ID失败: {exc}')
-            return None
-
-    def _get_all_users_with_expiry(self):
-        try:
-            users = self.emby_client.get_users()
-            user_groups = self.db_manager.get_all_user_groups()
-            user_group_map = {}
-            for group in user_groups:
-                for member_id in group.get('members', []):
-                    user_group_map.setdefault(member_id, []).append(group['name'])
-
-            users_with_status = []
-            for user in users:
-                user_id = user.get('Id')
-                is_disabled = user.get('Policy', {}).get('IsDisabled', False)
-                expiry_info = self.db_manager.get_user_expiry(user_id)
-                expiry_date = expiry_info.get('expiry_date') if expiry_info else None
-                never_expire = expiry_info.get('never_expire', False) if expiry_info else False
-
-                is_expired = False
-                if expiry_date and not never_expire:
-                    try:
-                        expiry = datetime.strptime(expiry_date, '%Y-%m-%d')
-                        if expiry.date() < datetime.now().date():
-                            is_expired = True
-                    except Exception:
-                        pass
-
-                users_with_status.append({
-                    'id': user_id,
-                    'name': user.get('Name'),
-                    'is_disabled': is_disabled,
-                    'expiry_date': expiry_date,
-                    'is_expired': is_expired,
-                    'never_expire': never_expire,
-                    'groups': user_group_map.get(user_id, []),
-                })
-            return users_with_status
-        except Exception as exc:
-            print(f'获取用户列表失败: {exc}')
-            return []
+            return send_from_directory(self.frontend_dist, 'index.html')
 
     def start(self):
+        from waitress import serve
+
         if self.running:
             return
 
+        def run_server():
+            serve(self.app, host='0.0.0.0', port=5000)
+
         self.running = True
-        self.server_thread = threading.Thread(target=self._run_server)
-        self.server_thread.daemon = True
+        self.server_thread = threading.Thread(target=run_server, daemon=True)
         self.server_thread.start()
         print('Web服务器已启动，访问地址: http://localhost:5000')
 
-    def stop(self):
-        self.running = False
-        if self.server_thread:
-            self.server_thread.join(timeout=5)
+    def _get_all_active_sessions(self):
+        active_sessions = getattr(self.monitor, 'active_sessions', {}) if self.monitor else {}
+        sessions = []
+        for session in (active_sessions or {}).values():
+            sessions.append(
+                {
+                    'session_id': session.get('session_id'),
+                    'user_id': session.get('user_id'),
+                    'username': session.get('username') or '未知用户',
+                    'ip_address': session.get('ip') or '',
+                    'location': session.get('location') or '未知位置',
+                    'device': session.get('device') or '未知设备',
+                    'client': session.get('client') or '未知客户端',
+                    'media': session.get('media') or '未知内容',
+                }
+            )
+        sessions.sort(key=lambda current: (current.get('username') or '', current.get('session_id') or ''))
+        return sessions
 
-    def _run_server(self):
+    def _get_user_groups_map(self):
+        groups = self.db_manager.get_all_user_groups() or []
+        mapping = {}
+        for group in groups:
+            group_name = (group.get('name') or '').strip()
+            if not group_name:
+                continue
+            for user_id in group.get('members') or []:
+                mapping.setdefault(user_id, []).append(group_name)
+        return mapping
+
+    def _get_user_id_by_username(self, username):
+        user = self.emby_client.get_user_by_name(username)
+        return user.get('Id') if user else None
+
+    def _get_user_playback_records(self, user_id=None, username=''):
+        if user_id:
+            records = self.db_manager.get_user_playback_records(user_id, limit=10)
+            if records:
+                return records
+        if username:
+            return self.db_manager.get_playback_records_by_username(username, limit=10)
+        return []
+
+    def _serialize_playback_records(self, records):
+        payload = []
+        for record in records or []:
+            payload.append(
+                {
+                    'session_id': record[0],
+                    'ip_address': record[1],
+                    'device_name': record[2],
+                    'client_type': record[3],
+                    'media_name': record[4],
+                    'start_time': record[5],
+                    'end_time': record[6],
+                    'duration': record[7],
+                    'location': record[8],
+                }
+            )
+        return payload
+
+    def _get_user_ban_info(self, user_id=None, username=''):
+        if user_id:
+            record = self.db_manager.get_user_ban_info(user_id)
+            if record:
+                return record
+        if username:
+            return self.db_manager.get_ban_info_by_username(username)
+        return None
+
+    def _serialize_ban_info(self, record):
+        if not record:
+            return None
+        return {
+            'timestamp': record[0],
+            'trigger_ip': record[1],
+            'active_sessions': record[2],
+            'action': record[3],
+        }
+
+    def _get_user_active_sessions(self, user_id):
+        return [session for session in self._get_all_active_sessions() if session.get('user_id') == user_id]
+
+    def _is_guest_request_enabled(self):
+        return bool(self.config.get('guest_request', {}).get('enabled', False))
+
+    def _get_client_ip(self):
+        forwarded_for = request.headers.get('X-Forwarded-For', '')
+        if forwarded_for:
+            return forwarded_for.split(',')[0].strip()
+        access_route = request.access_route or []
+        if access_route:
+            return access_route[0]
+        return request.remote_addr or ''
+
+    def _get_guest_request_daily_limit(self):
         try:
-            from waitress import serve
+            return max(int(self.config.get('guest_request', {}).get('daily_limit_per_ip', 10) or 0), 0)
+        except Exception:
+            return 0
 
-            serve(self.app, host='0.0.0.0', port=5000, threads=10)
-        except Exception as exc:
-            print(f'Web服务器运行错误: {exc}')
-            self.running = False
+    def _get_all_users_with_expiry(self):
+        groups_map = self._get_user_groups_map()
+        users = []
+        today = datetime.now().date()
+
+        for user in self.emby_client.get_users() or []:
+            user_id = user.get('Id')
+            expiry_info = self.db_manager.get_user_expiry(user_id) or {}
+            expiry_date = expiry_info.get('expiry_date') or ''
+            never_expire = bool(expiry_info.get('never_expire'))
+            is_expired = False
+
+            if expiry_date and not never_expire:
+                try:
+                    is_expired = datetime.strptime(expiry_date, '%Y-%m-%d').date() < today
+                except ValueError:
+                    is_expired = False
+
+            users.append(
+                {
+                    'id': user_id,
+                    'name': user.get('Name') or '',
+                    'groups': groups_map.get(user_id, []),
+                    'is_disabled': bool((user.get('Policy') or {}).get('IsDisabled')),
+                    'expiry_date': expiry_date,
+                    'never_expire': never_expire,
+                    'is_expired': is_expired,
+                }
+            )
+
+        users.sort(key=lambda current: (current.get('name') or '').lower())
+        return users
 
 
 class AdminUser(UserMixin):
-    def get_id(self):
-        return 'admin'
+    id = 'admin'

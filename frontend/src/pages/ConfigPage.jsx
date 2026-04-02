@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { apiRequest } from '@/types/api'
 
@@ -12,7 +12,6 @@ export default function ConfigPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const navigate = useNavigate()
 
   useEffect(() => {
     const load = async () => {
@@ -88,17 +87,6 @@ export default function ConfigPage() {
     <div className='mx-auto max-w-7xl space-y-6 p-4 pb-8 md:p-8'>
       <div className='flex flex-wrap items-center justify-between gap-2'>
         <h1 className='text-2xl font-bold'>配置管理</h1>
-        <div className='flex flex-wrap items-center gap-2'>
-          <Button variant='outline' onClick={() => navigate('/admin/users')}>
-            用户
-          </Button>
-          <Button variant='outline' onClick={() => navigate('/admin/config')}>
-            配置
-          </Button>
-          <Button variant='outline' onClick={() => navigate('/admin/groups')}>
-            用户组
-          </Button>
-        </div>
       </div>
 
       <Card>
@@ -108,31 +96,19 @@ export default function ConfigPage() {
         <CardContent className='grid gap-4 md:grid-cols-2'>
           <div className='space-y-2'>
             <label className='text-sm text-muted-foreground'>服务器地址（内网）</label>
-            <Input
-              value={config.emby.server_url || ''}
-              onChange={(e) => update(['emby', 'server_url'], e.target.value)}
-            />
+            <Input value={config.emby.server_url || ''} onChange={(e) => update(['emby', 'server_url'], e.target.value)} />
           </div>
           <div className='space-y-2'>
             <label className='text-sm text-muted-foreground'>服务器外网地址</label>
-            <Input
-              value={config.emby.external_url || ''}
-              onChange={(e) => update(['emby', 'external_url'], e.target.value)}
-            />
+            <Input value={config.emby.external_url || ''} onChange={(e) => update(['emby', 'external_url'], e.target.value)} />
           </div>
           <div className='space-y-2'>
             <label className='text-sm text-muted-foreground'>EmbyQ 外网地址</label>
-            <Input
-              value={config.service?.external_url || ''}
-              onChange={(e) => update(['service', 'external_url'], e.target.value)}
-            />
+            <Input value={config.service?.external_url || ''} onChange={(e) => update(['service', 'external_url'], e.target.value)} />
           </div>
           <div className='space-y-2'>
             <label className='text-sm text-muted-foreground'>API Key</label>
-            <Input
-              value={config.emby.api_key || ''}
-              onChange={(e) => update(['emby', 'api_key'], e.target.value)}
-            />
+            <Input value={config.emby.api_key || ''} onChange={(e) => update(['emby', 'api_key'], e.target.value)} />
           </div>
           <div className='space-y-2'>
             <label className='text-sm text-muted-foreground'>检查间隔(秒)</label>
@@ -147,20 +123,71 @@ export default function ConfigPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>TMDB 与游客求片</CardTitle>
+        </CardHeader>
+        <CardContent className='grid gap-4 md:grid-cols-2'>
+          <label className='flex items-center gap-2 text-sm'>
+            <Checkbox
+              checked={Boolean(config.tmdb?.enabled)}
+              onChange={(e) => update(['tmdb', 'enabled'], e.target.checked)}
+            />
+            启用 TMDB 搜索
+          </label>
+          <label className='flex items-center gap-2 text-sm'>
+            <Checkbox
+              checked={Boolean(config.guest_request?.enabled)}
+              onChange={(e) => update(['guest_request', 'enabled'], e.target.checked)}
+            />
+            启用游客求片
+          </label>
+          <div className='space-y-2'>
+            <label className='text-sm text-muted-foreground'>TMDB API Key</label>
+            <Input value={config.tmdb?.api_key || ''} onChange={(e) => update(['tmdb', 'api_key'], e.target.value)} />
+          </div>
+          <div className='space-y-2'>
+            <label className='text-sm text-muted-foreground'>TMDB 语言</label>
+            <Input value={config.tmdb?.language || 'zh-CN'} onChange={(e) => update(['tmdb', 'language'], e.target.value)} />
+          </div>
+          <div className='space-y-2'>
+            <label className='text-sm text-muted-foreground'>海报基础地址</label>
+            <Input
+              value={config.tmdb?.image_base_url || ''}
+              onChange={(e) => update(['tmdb', 'image_base_url'], e.target.value)}
+            />
+          </div>
+          <div className='space-y-2'>
+            <label className='text-sm text-muted-foreground'>每个 IP 每日求片上限</label>
+            <Input
+              type='number'
+              value={config.guest_request?.daily_limit_per_ip || 10}
+              onChange={(e) => update(['guest_request', 'daily_limit_per_ip'], Number(e.target.value || 0))}
+            />
+          </div>
+          <label className='flex items-center gap-2 text-sm md:col-span-2'>
+            <Checkbox
+              checked={Boolean(config.tmdb?.include_adult)}
+              onChange={(e) => update(['tmdb', 'include_adult'], e.target.checked)}
+            />
+            搜索时包含成人内容
+          </label>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>IP 归属地解析</CardTitle>
         </CardHeader>
         <CardContent className='space-y-4'>
           <label className='flex items-start gap-2 text-sm'>
-            <input
-              type='checkbox'
+            <Checkbox
               checked={Boolean(config.ip_location?.use_geocache)}
               onChange={(e) => update(['ip_location', 'use_geocache'], e.target.checked)}
               className='mt-1'
             />
             <div className='flex-1'>
               <div className='font-medium'>启用自建库解析</div>
-              <div className='text-xs text-muted-foreground mt-1'>
-                默认使用IP138解析归属地，启用本开关将切换到优先自建归属地库+备用IP数据云（付费库），同时也会开启上传IP数据到自建库以丰富自建库数据
+              <div className='mt-1 text-xs text-muted-foreground'>
+                默认使用IP138解析归属地，启用后会切换到优先自建归属地库，并清空已有解析缓存。
               </div>
             </div>
           </label>
@@ -172,7 +199,7 @@ export default function ConfigPage() {
           <CardTitle>安全与通知</CardTitle>
         </CardHeader>
         <CardContent className='space-y-4'>
-          <div className='grid gap-4 md:grid-cols-3'>
+          <div className='grid gap-4 md:grid-cols-4'>
             <div className='space-y-2'>
               <label className='text-sm text-muted-foreground'>告警阈值</label>
               <Input
@@ -181,17 +208,23 @@ export default function ConfigPage() {
                 onChange={(e) => update(['notifications', 'alert_threshold'], Number(e.target.value || 2))}
               />
             </div>
+            <div className='space-y-2'>
+              <label className='text-sm text-muted-foreground'>IPv6 前缀长度</label>
+              <Input
+                type='number'
+                value={config.security?.ipv6_prefix_length || 64}
+                onChange={(e) => update(['security', 'ipv6_prefix_length'], Number(e.target.value || 64))}
+              />
+            </div>
             <label className='flex items-center gap-2 pt-8 text-sm'>
-              <input
-                type='checkbox'
+              <Checkbox
                 checked={Boolean(config.notifications.enable_alerts)}
                 onChange={(e) => update(['notifications', 'enable_alerts'], e.target.checked)}
               />
               启用异常告警
             </label>
             <label className='flex items-center gap-2 pt-8 text-sm'>
-              <input
-                type='checkbox'
+              <Checkbox
                 checked={Boolean(config.security.auto_disable)}
                 onChange={(e) => update(['security', 'auto_disable'], e.target.checked)}
               />
@@ -226,8 +259,7 @@ export default function ConfigPage() {
         </CardHeader>
         <CardContent className='grid gap-4 md:grid-cols-2'>
           <label className='flex items-center gap-2 text-sm md:col-span-2'>
-            <input
-              type='checkbox'
+            <Checkbox
               checked={Boolean(config.webhook?.enabled)}
               onChange={(e) => update(['webhook', 'enabled'], e.target.checked)}
             />
@@ -235,10 +267,7 @@ export default function ConfigPage() {
           </label>
           <div className='space-y-2'>
             <label className='text-sm text-muted-foreground'>Webhook URL</label>
-            <Input
-              value={config.webhook?.url || ''}
-              onChange={(e) => update(['webhook', 'url'], e.target.value)}
-            />
+            <Input value={config.webhook?.url || ''} onChange={(e) => update(['webhook', 'url'], e.target.value)} />
           </div>
           <div className='space-y-2'>
             <label className='text-sm text-muted-foreground'>超时(秒)</label>
@@ -257,7 +286,7 @@ export default function ConfigPage() {
             />
           </div>
           <div className='space-y-2 md:col-span-2'>
-            <label className='text-sm text-muted-foreground'>Webhook Body (YAML)</label>
+            <label className='text-sm text-muted-foreground'>Webhook Body (YAML 或 JSON)</label>
             <Textarea
               className='min-h-48 font-mono'
               value={
@@ -280,10 +309,7 @@ export default function ConfigPage() {
         <CardContent className='grid gap-4 md:grid-cols-2'>
           <div className='space-y-2'>
             <label className='text-sm text-muted-foreground'>管理员用户名</label>
-            <Input
-              value={config.web?.admin_username || 'admin'}
-              onChange={(e) => update(['web', 'admin_username'], e.target.value)}
-            />
+            <Input value={config.web?.admin_username || 'admin'} onChange={(e) => update(['web', 'admin_username'], e.target.value)} />
           </div>
           <div className='space-y-2'>
             <label className='text-sm text-muted-foreground'>管理员密码</label>

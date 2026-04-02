@@ -5,6 +5,7 @@ import HomePage from '@/pages/HomePage'
 import LoginPage from '@/pages/LoginPage'
 import SearchPage from '@/pages/SearchPage'
 import AdminPage from '@/pages/AdminPage'
+import AdminWishesPage from '@/pages/AdminWishesPage'
 import ConfigPage from '@/pages/ConfigPage'
 import GroupsPage from '@/pages/GroupsPage'
 import InviteRegisterPage from '@/pages/InviteRegisterPage'
@@ -23,6 +24,7 @@ export default function App() {
           <Route path='about' element={<AboutPage />} />
           <Route path='admin' element={<Navigate to='/admin/users' replace />} />
           <Route path='admin/users' element={<AdminPage />} />
+          <Route path='admin/wishes' element={<AdminWishesPage />} />
           <Route path='admin/config' element={<ConfigPage />} />
           <Route path='admin/groups' element={<GroupsPage />} />
           <Route path='admin/logs' element={<LogPage />} />

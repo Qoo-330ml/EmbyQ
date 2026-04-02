@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CalendarPlus, Link2, Lock, LockOpen, UserPlus } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import UserIdentity from '@/components/UserIdentity'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import UserIdentity from '@/components/UserIdentity'
 import { apiRequest } from '@/types/api'
 import { getUserStatus } from '@/types/format'
 
@@ -28,7 +28,6 @@ export default function AdminPage() {
   const [createPassword, setCreatePassword] = useState('')
   const [templateUserId, setTemplateUserId] = useState('')
   const [createGroupIds, setCreateGroupIds] = useState([])
-
   const [inviteHours, setInviteHours] = useState('24')
   const [inviteCount, setInviteCount] = useState('1')
   const [inviteGroupId, setInviteGroupId] = useState('')
@@ -44,7 +43,7 @@ export default function AdminPage() {
     [selected]
   )
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
@@ -59,31 +58,31 @@ export default function AdminPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [navigate])
 
-  const loadGroups = async () => {
+  const loadGroups = useCallback(async () => {
     try {
-      const g = await apiRequest('/admin/groups')
-      setAllGroups(g.groups || [])
-    } catch (e) {
-      // ignore
+      const groupData = await apiRequest('/admin/groups')
+      setAllGroups(groupData.groups || [])
+    } catch (loadError) {
+      console.error('加载用户组失败:', loadError)
     }
-  }
+  }, [])
 
-  const loadInvites = async () => {
+  const loadInvites = useCallback(async () => {
     try {
       const data = await apiRequest('/admin/invites')
       setInviteList(data.invites || [])
-    } catch (e) {
-      // ignore
+    } catch (loadError) {
+      console.error('加载邀请失败:', loadError)
     }
-  }
+  }, [])
 
   useEffect(() => {
     loadUsers()
     loadGroups()
     loadInvites()
-  }, [])
+  }, [loadGroups, loadInvites, loadUsers])
 
   const toggleAll = (checked) => {
     if (!checked) {
@@ -91,8 +90,8 @@ export default function AdminPage() {
       return
     }
     const next = {}
-    users.forEach((u) => {
-      next[u.id] = true
+    users.forEach((user) => {
+      next[user.id] = true
     })
     setSelected(next)
   }
@@ -180,17 +179,6 @@ export default function AdminPage() {
     <div className='mx-auto max-w-7xl space-y-6 p-4 pb-8 md:p-8'>
       <div className='flex flex-wrap items-center justify-between gap-2'>
         <h1 className='text-2xl font-bold'>用户管理</h1>
-        <div className='flex flex-wrap items-center gap-2'>
-          <Button variant='outline' onClick={() => navigate('/admin/users')}>
-            用户
-          </Button>
-          <Button variant='outline' onClick={() => navigate('/admin/config')}>
-            配置
-          </Button>
-          <Button variant='outline' onClick={() => navigate('/admin/groups')}>
-            用户组
-          </Button>
-        </div>
       </div>
 
       <div className='grid grid-cols-2 gap-4 md:grid-cols-4'>
@@ -225,14 +213,7 @@ export default function AdminPage() {
           <CardTitle>批量操作（已选 {selectedIds.length}）</CardTitle>
         </CardHeader>
         <CardContent className='flex flex-wrap items-center gap-2'>
-          <Input
-            type='number'
-            min={1}
-            value={customDays}
-            onChange={(e) => setCustomDays(e.target.value)}
-            className='w-24'
-            placeholder='天数'
-          />
+          <Input type='number' min={1} value={customDays} onChange={(e) => setCustomDays(e.target.value)} className='w-24' placeholder='天数' />
           <Button size='sm' onClick={() => batchAction('add_days')}>
             <CalendarPlus className='mr-2 h-4 w-4' /> 增加到期天数
           </Button>
@@ -255,7 +236,14 @@ export default function AdminPage() {
         <CardHeader className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
           <CardTitle>用户列表</CardTitle>
           <div className='flex flex-wrap items-center gap-2'>
-            <Button variant='secondary' onClick={() => { setInviteOpen(true); setInviteUrl(''); loadInvites() }}>
+            <Button
+              variant='secondary'
+              onClick={() => {
+                setInviteOpen(true)
+                setInviteUrl('')
+                loadInvites()
+              }}
+            >
               <Link2 className='mr-2 h-4 w-4' /> 邀请
             </Button>
             <Button onClick={() => setCreateOpen(true)}>
@@ -269,34 +257,34 @@ export default function AdminPage() {
           {notice ? <p className='mb-3 text-sm text-primary'>{notice}</p> : null}
 
           <div className='space-y-3 md:hidden'>
-            {users.map((u) => {
-              const status = getUserStatus(u)
+            {users.map((user) => {
+              const status = getUserStatus(user)
               return (
-                <Card key={`mobile-${u.id}`}>
+                <Card key={`mobile-${user.id}`}>
                   <CardContent className='space-y-2 p-4'>
                     <div className='flex items-start justify-between gap-2'>
                       <button
                         type='button'
                         className='text-left text-primary hover:underline'
-                        onClick={() => navigate(`/search?username=${encodeURIComponent(u.name)}`)}
+                        onClick={() => navigate(`/search?username=${encodeURIComponent(user.name)}`)}
                       >
-                        <UserIdentity name={u.name} groups={u.groups || []} />
+                        <UserIdentity name={user.name} groups={user.groups || []} />
                       </button>
                       <Badge variant={status.variant}>{status.label}</Badge>
                     </div>
                     <div className='text-sm text-muted-foreground'>
-                      到期：{u.never_expire ? '永不过期' : u.expiry_date || '未设置'}
+                      到期：{user.never_expire ? '永不过期' : user.expiry_date || '未设置'}
                     </div>
                     <div className='flex flex-wrap gap-2'>
-                      <Button size='sm' variant='outline' onClick={() => openExpiryEditor(u)}>
+                      <Button size='sm' variant='outline' onClick={() => openExpiryEditor(user)}>
                         设置到期
                       </Button>
-                      {u.is_disabled ? (
-                        <Button size='sm' onClick={() => updateUser(u.id, 'unban')}>
+                      {user.is_disabled ? (
+                        <Button size='sm' onClick={() => updateUser(user.id, 'unban')}>
                           启用
                         </Button>
                       ) : (
-                        <Button size='sm' variant='destructive' onClick={() => updateUser(u.id, 'ban')}>
+                        <Button size='sm' variant='destructive' onClick={() => updateUser(user.id, 'ban')}>
                           禁用
                         </Button>
                       )}
@@ -304,13 +292,13 @@ export default function AdminPage() {
                         size='sm'
                         variant='destructive'
                         onClick={async () => {
-                          if (!window.confirm(`确定删除用户 ${u.name} 吗？`)) return
+                          if (!window.confirm(`确定删除用户 ${user.name} 吗？`)) return
                           try {
-                            await apiRequest(`/admin/users/${u.id}`, { method: 'DELETE' })
-                            setNotice(`已删除用户 ${u.name}`)
+                            await apiRequest(`/admin/users/${user.id}`, { method: 'DELETE' })
+                            setNotice(`已删除用户 ${user.name}`)
                             await loadUsers()
-                          } catch (e) {
-                            setNotice(`删除失败：${e.message}`)
+                          } catch (err) {
+                            setNotice(`删除失败：${err.message}`)
                           }
                         }}
                       >
@@ -325,83 +313,77 @@ export default function AdminPage() {
 
           <div className='hidden overflow-x-auto md:block'>
             <Table className='w-full table-fixed'>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-12'>
-                  <Checkbox
-                    checked={users.length > 0 && selectedIds.length === users.length}
-                    onChange={(e) => toggleAll(e.target.checked)}
-                  />
-                </TableHead>
-                <TableHead className='w-[36%]'>用户</TableHead>
-                <TableHead className='w-[18%]'>到期时间</TableHead>
-                <TableHead className='w-[12%]'>状态</TableHead>
-                <TableHead className='w-[24%]'>操作</TableHead>
-                <TableHead className='w-[10%] text-right'>删除</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((u) => {
-                const status = getUserStatus(u)
-                return (
-                  <TableRow key={u.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={Boolean(selected[u.id])}
-                        onChange={(e) => setSelected((prev) => ({ ...prev, [u.id]: e.target.checked }))}
-                      />
-                    </TableCell>
-                    <TableCell className='align-top'>
-                      <button
-                        type='button'
-                        className='block w-full text-left text-primary hover:underline'
-                        onClick={() => navigate(`/search?username=${encodeURIComponent(u.name)}`)}
-                      >
-                        <UserIdentity name={u.name} groups={u.groups || []} />
-                      </button>
-                    </TableCell>
-                    <TableCell className='align-top whitespace-nowrap'>{u.never_expire ? '永不过期' : u.expiry_date || '未设置'}</TableCell>
-                    <TableCell className='align-top'>
-                      <Badge variant={status.variant}>{status.label}</Badge>
-                    </TableCell>
-                    <TableCell className='align-top'>
-                      <div className='flex flex-wrap gap-2'>
-                      <Button size='sm' variant='outline' onClick={() => openExpiryEditor(u)}>
-                        设置到期
-                      </Button>
-                      {u.is_disabled ? (
-                        <Button size='sm' onClick={() => updateUser(u.id, 'unban')}>
-                          启用
+              <TableHeader>
+                <TableRow>
+                  <TableHead className='w-12'>
+                    <Checkbox checked={users.length > 0 && selectedIds.length === users.length} onChange={(e) => toggleAll(e.target.checked)} />
+                  </TableHead>
+                  <TableHead className='w-[36%]'>用户</TableHead>
+                  <TableHead className='w-[18%]'>到期时间</TableHead>
+                  <TableHead className='w-[12%]'>状态</TableHead>
+                  <TableHead className='w-[24%]'>操作</TableHead>
+                  <TableHead className='w-[10%] text-right'>删除</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((user) => {
+                  const status = getUserStatus(user)
+                  return (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <Checkbox checked={Boolean(selected[user.id])} onChange={(e) => setSelected((prev) => ({ ...prev, [user.id]: e.target.checked }))} />
+                      </TableCell>
+                      <TableCell className='align-top'>
+                        <button
+                          type='button'
+                          className='block w-full text-left text-primary hover:underline'
+                          onClick={() => navigate(`/search?username=${encodeURIComponent(user.name)}`)}
+                        >
+                          <UserIdentity name={user.name} groups={user.groups || []} />
+                        </button>
+                      </TableCell>
+                      <TableCell className='align-top whitespace-nowrap'>{user.never_expire ? '永不过期' : user.expiry_date || '未设置'}</TableCell>
+                      <TableCell className='align-top'>
+                        <Badge variant={status.variant}>{status.label}</Badge>
+                      </TableCell>
+                      <TableCell className='align-top'>
+                        <div className='flex flex-wrap gap-2'>
+                          <Button size='sm' variant='outline' onClick={() => openExpiryEditor(user)}>
+                            设置到期
+                          </Button>
+                          {user.is_disabled ? (
+                            <Button size='sm' onClick={() => updateUser(user.id, 'unban')}>
+                              启用
+                            </Button>
+                          ) : (
+                            <Button size='sm' variant='destructive' onClick={() => updateUser(user.id, 'ban')}>
+                              禁用
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className='align-top text-right'>
+                        <Button
+                          size='sm'
+                          variant='destructive'
+                          onClick={async () => {
+                            if (!window.confirm(`确定删除用户 ${user.name} 吗？`)) return
+                            try {
+                              await apiRequest(`/admin/users/${user.id}`, { method: 'DELETE' })
+                              setNotice(`已删除用户 ${user.name}`)
+                              await loadUsers()
+                            } catch (err) {
+                              setNotice(`删除失败：${err.message}`)
+                            }
+                          }}
+                        >
+                          删除
                         </Button>
-                      ) : (
-                        <Button size='sm' variant='destructive' onClick={() => updateUser(u.id, 'ban')}>
-                          禁用
-                        </Button>
-                      )}
-                      </div>
-                    </TableCell>
-                    <TableCell className='align-top text-right'>
-                      <Button
-                        size='sm'
-                        variant='destructive'
-                        onClick={async () => {
-                          if (!window.confirm(`确定删除用户 ${u.name} 吗？`)) return
-                          try {
-                            await apiRequest(`/admin/users/${u.id}`, { method: 'DELETE' })
-                            setNotice(`已删除用户 ${u.name}`)
-                            await loadUsers()
-                          } catch (e) {
-                            setNotice(`删除失败：${e.message}`)
-                          }
-                        }}
-                      >
-                        删除
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
             </Table>
           </div>
         </CardContent>
@@ -433,9 +415,9 @@ export default function AdminPage() {
                   onChange={(e) => setTemplateUserId(e.target.value)}
                 >
                   <option value=''>不使用模板</option>
-                  {users.map((u) => (
-                    <option key={`tpl-${u.id}`} value={u.id}>
-                      {u.name}
+                  {users.map((user) => (
+                    <option key={`tpl-${user.id}`} value={user.id}>
+                      {user.name}
                     </option>
                   ))}
                 </select>
@@ -444,19 +426,17 @@ export default function AdminPage() {
               <div className='space-y-2'>
                 <label className='text-sm text-muted-foreground'>用户组（可多选）</label>
                 <div className='grid gap-2 md:grid-cols-2'>
-                  {allGroups.map((g) => (
-                    <label key={`cg-${g.id}`} className='flex items-center gap-2 text-sm'>
+                  {allGroups.map((group) => (
+                    <label key={`cg-${group.id}`} className='flex items-center gap-2 text-sm'>
                       <input
                         type='checkbox'
-                        checked={createGroupIds.includes(g.id)}
+                        checked={createGroupIds.includes(group.id)}
                         onChange={(e) => {
                           const checked = e.target.checked
-                          setCreateGroupIds((prev) =>
-                            checked ? [...prev, g.id] : prev.filter((x) => x !== g.id)
-                          )
+                          setCreateGroupIds((prev) => (checked ? [...prev, group.id] : prev.filter((x) => x !== group.id)))
                         }}
                       />
-                      {g.name}
+                      {group.name}
                     </label>
                   ))}
                 </div>
@@ -495,8 +475,8 @@ export default function AdminPage() {
                       setCreateGroupIds([])
                       await loadUsers()
                       await loadGroups()
-                    } catch (e) {
-                      setNotice(`创建失败：${e.message}`)
+                    } catch (err) {
+                      setNotice(`创建失败：${err.message}`)
                     }
                   }}
                 >
@@ -534,9 +514,9 @@ export default function AdminPage() {
                   onChange={(e) => setInviteGroupId(e.target.value)}
                 >
                   <option value=''>不指定</option>
-                  {allGroups.map((g) => (
-                    <option key={`ig-${g.id}`} value={g.id}>
-                      {g.name}
+                  {allGroups.map((group) => (
+                    <option key={`ig-${group.id}`} value={group.id}>
+                      {group.name}
                     </option>
                   ))}
                 </select>
@@ -558,14 +538,14 @@ export default function AdminPage() {
                 <div className='text-sm font-medium'>已发邀请链接</div>
                 <div className='max-h-56 space-y-2 overflow-auto'>
                   {inviteList.length ? (
-                    inviteList.map((inv) => {
-                      const exhausted = Number(inv.used_count || 0) >= Number(inv.max_uses || 0)
-                      const invalid = exhausted || !inv.is_active
+                    inviteList.map((invite) => {
+                      const exhausted = Number(invite.used_count || 0) >= Number(invite.max_uses || 0)
+                      const invalid = exhausted || !invite.is_active
                       return (
-                        <div key={inv.code} className='rounded border p-2'>
+                        <div key={invite.code} className='rounded border p-2'>
                           <div className='flex items-start justify-between gap-2'>
                             <div className={`break-all font-mono text-xs ${invalid ? 'line-through text-muted-foreground' : ''}`}>
-                              {inv.invite_url}
+                              {invite.invite_url}
                             </div>
                             <div className='flex items-center gap-2'>
                               <Button
@@ -574,17 +554,18 @@ export default function AdminPage() {
                                 onClick={async () => {
                                   try {
                                     if (navigator.clipboard?.writeText) {
-                                      await navigator.clipboard.writeText(inv.invite_url)
+                                      await navigator.clipboard.writeText(invite.invite_url)
                                     } else {
                                       const input = document.createElement('input')
-                                      input.value = inv.invite_url
+                                      input.value = invite.invite_url
                                       document.body.appendChild(input)
                                       input.select()
                                       document.execCommand('copy')
                                       document.body.removeChild(input)
                                     }
                                     setNotice('邀请链接已复制')
-                                  } catch {
+                                  } catch (copyError) {
+                                    console.error('复制邀请链接失败:', copyError)
                                     setNotice('复制失败，请手动复制')
                                   }
                                 }}
@@ -596,10 +577,10 @@ export default function AdminPage() {
                                 variant='destructive'
                                 onClick={async () => {
                                   try {
-                                    await apiRequest(`/admin/invites/${inv.code}`, { method: 'DELETE' })
+                                    await apiRequest(`/admin/invites/${invite.code}`, { method: 'DELETE' })
                                     await loadInvites()
-                                  } catch (e) {
-                                    setNotice(`删除邀请失败：${e.message}`)
+                                  } catch (err) {
+                                    setNotice(`删除邀请失败：${err.message}`)
                                   }
                                 }}
                               >
@@ -608,7 +589,7 @@ export default function AdminPage() {
                             </div>
                           </div>
                           <div className='mt-1 text-xs text-muted-foreground'>
-                            使用进度：{inv.used_count}/{inv.max_uses}
+                            使用进度：{invite.used_count}/{invite.max_uses}
                           </div>
                         </div>
                       )
@@ -637,8 +618,8 @@ export default function AdminPage() {
                       })
                       setInviteUrl(data.invite_url)
                       await loadInvites()
-                    } catch (e) {
-                      setNotice(`生成失败：${e.message}`)
+                    } catch (err) {
+                      setNotice(`生成失败：${err.message}`)
                     }
                   }}
                 >
@@ -658,19 +639,10 @@ export default function AdminPage() {
             </CardHeader>
             <CardContent className='space-y-3'>
               <label className='flex items-center gap-2 text-sm'>
-                <input
-                  type='checkbox'
-                  checked={neverExpire}
-                  onChange={(e) => setNeverExpire(e.target.checked)}
-                />
+                <input type='checkbox' checked={neverExpire} onChange={(e) => setNeverExpire(e.target.checked)} />
                 永不过期
               </label>
-              <Input
-                type='date'
-                disabled={neverExpire}
-                value={expiryDate}
-                onChange={(e) => setExpiryDate(e.target.value)}
-              />
+              <Input type='date' disabled={neverExpire} value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
               <div className='flex justify-end gap-2'>
                 <Button variant='secondary' onClick={clearExpiry}>
                   清除

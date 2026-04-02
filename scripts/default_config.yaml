@@ -1,5 +1,5 @@
 database:
-  name: emby_playback.db # 默认数据库，不改动
+  name: emby_playback.db
 emby:
   server_url: https://emby.example.com
   external_url: https://emby.example.com
@@ -9,28 +9,34 @@ service:
 monitor:
   check_interval: 10
 ip_location:
-  use_geocache: false # 注意！默认使用IP138解析归属地，启用本开关将切换到优先自建归属地库+备用IP数据云（付费库），同时也会开启上传IP数据到自建库以丰富自建库数据，不会上传其他隐私数据，请考虑后开启！
+  use_geocache: false
 notifications:
-  alert_threshold: 2 # 播放窗口数(需不同IP），达到这个值即禁用
+  alert_threshold: 2
   enable_alerts: true
 security:
   auto_disable: true
-  whitelist: # 白名单内的用户不会被禁用
-  - "admin"
-  - "user1"
-  - "user2"
-
+  ipv6_prefix_length: 64
+  whitelist:
+    - admin
+    - user1
+    - user2
 webhook:
-  enabled: false # 是否启用webhook通知
-  url: # webhook地址
-  timeout: 10 # 请求超时时间（秒）
-  retry_attempts: 3 # 重试次数
-  # 自定义请求体配置 - 用户可以根据自己的webhook服务器要求自定义
+  enabled: false
+  url:
+  timeout: 10
+  retry_attempts: 3
   body:
-    title: "Emby用户封禁通知" # 消息标题，根据你的webhook服务要求设置
-    content: "用户 {username} 在 {location} 使用 {ip_address} ({ip_type}) 登录，检测到 {session_count} 个并发会话，已自动封禁。"
-
-# Web服务器配置
+    title: Emby用户封禁通知
+    content: 用户 {username} 在 {location} 使用 {ip_address} ({ip_type}) 登录，检测到 {session_count} 个并发会话，已自动封禁。
+tmdb:
+  enabled: true
+  api_key:
+  language: zh-CN
+  include_adult: false
+  image_base_url: https://image.tmdb.org/t/p/w342
+guest_request:
+  enabled: true
+  daily_limit_per_ip: 10
 web:
-  admin_username: admin # 管理员用户名
-  admin_password: admin123 # 管理员密码（生产环境请修改）
+  admin_username: admin
+  admin_password: admin123

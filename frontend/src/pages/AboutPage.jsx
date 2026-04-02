@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function AboutPage() {
@@ -11,7 +12,7 @@ export default function AboutPage() {
         const response = await fetch('/ABOUT.md')
         const text = await response.text()
         setReadme(text)
-      } catch (e) {
+      } catch {
         setReadme('加载 ABOUT 失败')
       } finally {
         setLoading(false)
@@ -22,7 +23,7 @@ export default function AboutPage() {
 
   const formatMarkdown = (text) => {
     if (!text) return ''
-    
+
     return text
       .replace(/^# (.*$)/gim, '<h1 class="text-3xl font-bold mb-4">$1</h1>')
       .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-bold mb-3 mt-6">$1</h2>')
@@ -36,10 +37,10 @@ export default function AboutPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-7xl p-4 pb-8 md:p-8">
+      <div className='mx-auto max-w-7xl p-4 pb-8 md:p-8'>
         <Card>
-          <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground">加载中...</p>
+          <CardContent className='p-8 text-center'>
+            <p className='text-muted-foreground'>加载中...</p>
           </CardContent>
         </Card>
       </div>
@@ -47,16 +48,13 @@ export default function AboutPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl p-4 pb-8 md:p-8">
+    <div className='mx-auto max-w-7xl p-4 pb-8 md:p-8'>
       <Card>
         <CardHeader>
           <CardTitle>关于 EmbyQ</CardTitle>
         </CardHeader>
-        <CardContent className="prose max-w-none">
-          <div 
-            className="markdown-content"
-            dangerouslySetInnerHTML={{ __html: formatMarkdown(readme) }}
-          />
+        <CardContent className='prose max-w-none'>
+          <div className='markdown-content' dangerouslySetInnerHTML={{ __html: formatMarkdown(readme) }} />
         </CardContent>
       </Card>
     </div>

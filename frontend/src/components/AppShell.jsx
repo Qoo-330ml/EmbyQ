@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Moon, Sun, Info, FileText } from 'lucide-react'
+import { FileText, Heart, Info, Moon, Sun } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { apiRequest } from '@/types/api'
@@ -12,6 +12,7 @@ const navItems = [
 
 const adminSubNav = [
   { to: '/admin/users', label: '用户' },
+  { to: '/admin/wishes', label: '求片' },
   { to: '/admin/config', label: '配置' },
   { to: '/admin/groups', label: '用户组' },
 ]
@@ -19,15 +20,13 @@ const adminSubNav = [
 export default function AppShell() {
   const location = useLocation()
   const navigate = useNavigate()
-  const [theme, setTheme] = useState('light')
+  const [theme, setTheme] = useState(() => localStorage.getItem('emby-ui-theme') || 'light')
   const [version, setVersion] = useState('')
 
   useEffect(() => {
-    const saved = localStorage.getItem('emby-ui-theme')
-    const initial = saved || 'light'
-    setTheme(initial)
-    document.documentElement.classList.toggle('dark', initial === 'dark')
-  }, [])
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    localStorage.setItem('emby-ui-theme', theme)
+  }, [theme])
 
   useEffect(() => {
     const loadVersion = async () => {
@@ -35,28 +34,27 @@ export default function AppShell() {
         const response = await fetch('/VERSION')
         const text = await response.text()
         setVersion(text.trim())
-      } catch (e) {
-        console.error('加载版本号失败:', e)
+      } catch (error) {
+        console.error('加载版本号失败:', error)
       }
     }
     loadVersion()
   }, [])
 
   const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-    localStorage.setItem('emby-ui-theme', next)
-    document.documentElement.classList.toggle('dark', next === 'dark')
+    setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
   }
 
   const logout = async () => {
     try {
       await apiRequest('/auth/logout', { method: 'POST' })
-    } catch (e) {
-      // ignore
+    } catch (error) {
+      console.error('退出登录失败:', error)
     }
     navigate('/login')
   }
+
+  const isAdminRoute = location.pathname.startsWith('/admin')
 
   return (
     <div className='min-h-screen bg-background'>
@@ -64,7 +62,7 @@ export default function AppShell() {
         <div className='mx-auto flex h-14 max-w-7xl items-center justify-between px-4 md:px-8'>
           <Link to='/' className='flex items-center gap-0 text-sm font-semibold tracking-wide text-primary'>
             <img src='/logo.svg' alt='EmbyQ' className='h-8 w-auto' />
-            {version && <span className='text-xs text-muted-foreground'>v{version}</span>}
+            {version ? <span className='text-xs text-muted-foreground'>v{version}</span> : null}
           </Link>
           <nav className='hidden items-center gap-2 md:flex'>
             {navItems.map((item) => (
@@ -82,8 +80,13 @@ export default function AppShell() {
             ))}
           </nav>
           <div className='flex items-center gap-2'>
-            {location.pathname.startsWith('/admin') ? (
+            {isAdminRoute ? (
               <>
+                <Link to='/admin/wishes'>
+                  <Button size='icon' variant='outline' title='求片管理'>
+                    <Heart className='h-4 w-4' />
+                  </Button>
+                </Link>
                 <Button size='sm' variant='destructive' onClick={logout}>
                   退出
                 </Button>
@@ -119,6 +122,23 @@ export default function AppShell() {
             </NavLink>
           ))}
         </div>
+        {isAdminRoute ? (
+          <div className='mx-auto flex max-w-7xl flex-wrap gap-2 px-4 pb-3 md:px-8'>
+            {adminSubNav.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `rounded-md px-3 py-1.5 text-sm transition-colors ${
+                    isActive ? 'bg-primary text-primary-foreground' : 'bg-accent text-foreground hover:bg-accent/80'
+                  }`
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
+        ) : null}
       </header>
 
       <main>

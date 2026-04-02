@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import UserIdentity from '@/components/UserIdentity'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { apiRequest } from '@/types/api'
 
 export default function GroupsPage() {
@@ -18,25 +17,48 @@ export default function GroupsPage() {
   const [days, setDays] = useState('30')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const navigate = useNavigate()
 
-  const activeGroup = useMemo(() => groups.find((g) => g.id === activeGroupId), [groups, activeGroupId])
+  const activeGroup = useMemo(() => groups.find((group) => group.id === activeGroupId), [groups, activeGroupId])
   const activeMemberIds = activeGroup?.members || []
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadAll = async () => {
+      try {
+        const [groupData, userData] = await Promise.all([apiRequest('/admin/groups'), apiRequest('/admin/users')])
+        if (cancelled) return
+        setGroups(groupData.groups || [])
+        setUsers(userData.users || [])
+        if (!activeGroupId && groupData.groups?.[0]?.id) {
+          setActiveGroupId(groupData.groups[0].id)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message)
+        }
+      }
+    }
+
+    loadAll()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeGroupId])
 
   const loadAll = async () => {
     try {
-      const [g, u] = await Promise.all([apiRequest('/admin/groups'), apiRequest('/admin/users')])
-      setGroups(g.groups || [])
-      setUsers(u.users || [])
-      if (!activeGroupId && g.groups?.[0]?.id) setActiveGroupId(g.groups[0].id)
+      const [groupData, userData] = await Promise.all([apiRequest('/admin/groups'), apiRequest('/admin/users')])
+      setGroups(groupData.groups || [])
+      setUsers(userData.users || [])
+      if (!activeGroupId && groupData.groups?.[0]?.id) {
+        setActiveGroupId(groupData.groups[0].id)
+      }
     } catch (err) {
       setError(err.message)
     }
   }
-
-  useEffect(() => {
-    loadAll()
-  }, [])
 
   const createGroup = async () => {
     if (!newGroupName.trim()) return
@@ -128,17 +150,6 @@ export default function GroupsPage() {
     <div className='mx-auto max-w-7xl space-y-6 p-4 pb-8 md:p-8'>
       <div className='flex flex-wrap items-center justify-between gap-2'>
         <h1 className='text-2xl font-bold'>用户组管理</h1>
-        <div className='flex flex-wrap items-center gap-2'>
-          <Button variant='outline' onClick={() => navigate('/admin/users')}>
-            用户
-          </Button>
-          <Button variant='outline' onClick={() => navigate('/admin/config')}>
-            配置
-          </Button>
-          <Button variant='outline' onClick={() => navigate('/admin/groups')}>
-            用户组
-          </Button>
-        </div>
       </div>
 
       {error ? <p className='text-sm text-destructive'>{error}</p> : null}
@@ -149,11 +160,7 @@ export default function GroupsPage() {
           <CardTitle>创建用户组</CardTitle>
         </CardHeader>
         <CardContent className='flex gap-2'>
-          <Input
-            placeholder='例如 家庭组'
-            value={newGroupName}
-            onChange={(e) => setNewGroupName(e.target.value)}
-          />
+          <Input placeholder='例如 家庭组' value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} />
           <Button onClick={createGroup}>创建</Button>
         </CardContent>
       </Card>
@@ -170,8 +177,8 @@ export default function GroupsPage() {
                 role='button'
                 tabIndex={0}
                 onClick={() => setActiveGroupId(group.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') setActiveGroupId(group.id)
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') setActiveGroupId(group.id)
                 }}
                 className={`flex items-center justify-between rounded border p-3 transition-colors hover:bg-accent/40 ${
                   activeGroupId === group.id ? 'border-primary' : ''
@@ -184,8 +191,8 @@ export default function GroupsPage() {
                 <Button
                   size='sm'
                   variant='destructive'
-                  onClick={(e) => {
-                    e.stopPropagation()
+                  onClick={(event) => {
+                    event.stopPropagation()
                     removeGroup(group.id)
                   }}
                 >
@@ -210,14 +217,15 @@ export default function GroupsPage() {
                     <select
                       className='h-10 w-full rounded-md border border-input bg-background px-3 text-sm'
                       value={memberId}
-                      onChange={(e) => setMemberId(e.target.value)}
+                      onChange={(event) => setMemberId(event.target.value)}
                     >
                       <option value=''>选择要添加的用户</option>
                       {users
-                        .filter((u) => !(activeGroup.members || []).includes(u.id))
-                        .map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.name}{u.groups?.length ? ` (${u.groups.join(' / ')})` : ''}
+                        .filter((user) => !(activeGroup.members || []).includes(user.id))
+                        .map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.name}
+                            {user.groups?.length ? ` (${user.groups.join(' / ')})` : ''}
                           </option>
                         ))}
                     </select>
@@ -225,11 +233,7 @@ export default function GroupsPage() {
                   </div>
 
                   <div className='flex items-center gap-2'>
-                    <Input
-                      placeholder='批量筛选用户'
-                      value={filterText}
-                      onChange={(e) => setFilterText(e.target.value)}
-                    />
+                    <Input placeholder='批量筛选用户' value={filterText} onChange={(event) => setFilterText(event.target.value)} />
                     <Button variant='secondary' onClick={addSelectedMembers}>
                       批量添加
                     </Button>
@@ -237,65 +241,70 @@ export default function GroupsPage() {
 
                   <div className='max-h-48 space-y-2 overflow-auto rounded border p-2'>
                     {users
-                      .filter((u) => !(activeGroup.members || []).includes(u.id))
-                      .filter((u) => u.name.toLowerCase().includes(filterText.toLowerCase()))
-                      .map((u) => (
-                        <label key={u.id} className='flex items-center gap-2 text-sm'>
+                      .filter((user) => !(activeGroup.members || []).includes(user.id))
+                      .filter((user) => user.name.toLowerCase().includes(filterText.toLowerCase()))
+                      .map((user) => (
+                        <label key={user.id} className='flex items-center gap-2 text-sm'>
                           <input
                             type='checkbox'
-                            checked={Boolean(selectedMembers[u.id])}
-                            onChange={(e) =>
-                              setSelectedMembers((prev) => ({ ...prev, [u.id]: e.target.checked }))
+                            checked={Boolean(selectedMembers[user.id])}
+                            onChange={(event) =>
+                              setSelectedMembers((prev) => ({ ...prev, [user.id]: event.target.checked }))
                             }
                           />
-                          <UserIdentity name={u.name} groups={u.groups || []} />
+                          <UserIdentity name={user.name} groups={user.groups || []} />
                         </label>
                       ))}
                     {!users
-                      .filter((u) => !(activeGroup.members || []).includes(u.id))
-                      .filter((u) => u.name.toLowerCase().includes(filterText.toLowerCase())).length ? (
+                      .filter((user) => !(activeGroup.members || []).includes(user.id))
+                      .filter((user) => user.name.toLowerCase().includes(filterText.toLowerCase())).length ? (
                       <p className='text-xs text-muted-foreground'>没有可添加的用户</p>
                     ) : null}
                   </div>
                 </div>
 
-                <div className='flex flex-wrap items-center gap-2 rounded border p-2'>
-                  <Input
-                    type='number'
-                    min={1}
-                    className='w-28'
-                    value={days}
-                    onChange={(e) => setDays(e.target.value)}
-                  />
-                  <Button size='sm' onClick={() => doGroupBatch('add_days')}>
-                    组内 +天数
-                  </Button>
-                  <Button size='sm' variant='secondary' onClick={() => doGroupBatch('clear_expiry')}>
-                    清除到期
-                  </Button>
-                  <Button size='sm' variant='secondary' onClick={() => doGroupBatch('never_expire')}>
-                    永不过期
-                  </Button>
-                  <Button size='sm' variant='destructive' onClick={() => doGroupBatch('ban')}>
-                    组内禁用
-                  </Button>
-                  <Button size='sm' onClick={() => doGroupBatch('unban')}>
-                    组内启用
-                  </Button>
+                <div className='grid gap-3 rounded border p-3'>
+                  <div className='font-medium'>组内批量操作</div>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <Input type='number' className='w-24' value={days} onChange={(event) => setDays(event.target.value)} />
+                    <Button size='sm' onClick={() => doGroupBatch('add_days')}>
+                      增加到期天数
+                    </Button>
+                    <Button size='sm' variant='secondary' onClick={() => doGroupBatch('clear_expiry')}>
+                      清除到期
+                    </Button>
+                    <Button size='sm' variant='secondary' onClick={() => doGroupBatch('never_expire')}>
+                      永不过期
+                    </Button>
+                    <Button size='sm' variant='destructive' onClick={() => doGroupBatch('ban')}>
+                      禁用组成员
+                    </Button>
+                    <Button size='sm' onClick={() => doGroupBatch('unban')}>
+                      启用组成员
+                    </Button>
+                  </div>
                 </div>
 
-                <div className='space-y-2'>
-                  {(activeGroup.members || []).map((uid) => {
-                    const u = users.find((x) => x.id === uid)
-                    return (
-                      <div key={uid} className='flex items-center justify-between rounded border p-2'>
-                        <UserIdentity name={u?.name || uid} groups={u?.groups || []} />
-                        <Button size='sm' variant='destructive' onClick={() => removeMember(uid)}>
-                          移除
-                        </Button>
-                      </div>
-                    )
-                  })}
+                <div className='rounded border p-3'>
+                  <div className='mb-2 font-medium'>当前成员</div>
+                  <div className='space-y-2'>
+                    {(activeGroup.members || []).length ? (
+                      activeGroup.members.map((userId) => {
+                        const user = users.find((currentUser) => currentUser.id === userId)
+                        if (!user) return null
+                        return (
+                          <div key={userId} className='flex items-center justify-between gap-2 rounded border p-2'>
+                            <UserIdentity name={user.name} groups={user.groups || []} />
+                            <Button size='sm' variant='destructive' onClick={() => removeMember(userId)}>
+                              移除
+                            </Button>
+                          </div>
+                        )
+                      })
+                    ) : (
+                      <p className='text-sm text-muted-foreground'>当前组暂无成员</p>
+                    )}
+                  </div>
                 </div>
               </>
             )}
