@@ -196,6 +196,50 @@ export default function ConfigPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>系统代理</CardTitle>
+        </CardHeader>
+        <CardContent className='space-y-4'>
+          <label className='flex items-center gap-2 text-sm'>
+            <Checkbox
+              checked={Boolean(config.proxy?.enabled)}
+              onChange={(e) => update(['proxy', 'enabled'], e.target.checked)}
+            />
+            启用代理
+          </label>
+          <div className='grid gap-4 md:grid-cols-2'>
+            <div className='space-y-2'>
+              <label className='text-sm text-muted-foreground'>HTTP 代理</label>
+              <Input
+                placeholder='http://127.0.0.1:7890'
+                value={config.proxy?.http || ''}
+                onChange={(e) => update(['proxy', 'http'], e.target.value)}
+              />
+            </div>
+            <div className='space-y-2'>
+              <label className='text-sm text-muted-foreground'>HTTPS 代理</label>
+              <Input
+                placeholder='http://127.0.0.1:7890'
+                value={config.proxy?.https || ''}
+                onChange={(e) => update(['proxy', 'https'], e.target.value)}
+              />
+            </div>
+            <div className='space-y-2'>
+              <label className='text-sm text-muted-foreground'>SOCKS5 代理</label>
+              <Input
+                placeholder='socks5://127.0.0.1:7890'
+                value={config.proxy?.socks5 || ''}
+                onChange={(e) => update(['proxy', 'socks5'], e.target.value)}
+              />
+            </div>
+          </div>
+          <p className='text-xs text-muted-foreground'>
+            设置后 TMDB 搜索请求将通过指定代理转发。支持 http、https、socks5 协议。
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>安全与通知</CardTitle>
         </CardHeader>
         <CardContent className='space-y-4'>
