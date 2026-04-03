@@ -42,6 +42,4 @@ web:
   admin_password: admin123
 proxy:
   enabled: false
-  http: ""
-  https: ""
-  socks5: ""
+  url: ""

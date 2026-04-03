@@ -206,34 +206,16 @@ export default function ConfigPage() {
             />
             启用代理
           </label>
-          <div className='grid gap-4 md:grid-cols-2'>
-            <div className='space-y-2'>
-              <label className='text-sm text-muted-foreground'>HTTP 代理</label>
-              <Input
-                placeholder='http://127.0.0.1:7890'
-                value={config.proxy?.http || ''}
-                onChange={(e) => update(['proxy', 'http'], e.target.value)}
-              />
-            </div>
-            <div className='space-y-2'>
-              <label className='text-sm text-muted-foreground'>HTTPS 代理</label>
-              <Input
-                placeholder='http://127.0.0.1:7890'
-                value={config.proxy?.https || ''}
-                onChange={(e) => update(['proxy', 'https'], e.target.value)}
-              />
-            </div>
-            <div className='space-y-2'>
-              <label className='text-sm text-muted-foreground'>SOCKS5 代理</label>
-              <Input
-                placeholder='socks5://127.0.0.1:7890'
-                value={config.proxy?.socks5 || ''}
-                onChange={(e) => update(['proxy', 'socks5'], e.target.value)}
-              />
-            </div>
+          <div className='space-y-2'>
+            <label className='text-sm text-muted-foreground'>代理地址</label>
+            <Input
+              placeholder='http://127.0.0.1:7890 或 socks5://127.0.0.1:7890'
+              value={config.proxy?.url || ''}
+              onChange={(e) => update(['proxy', 'url'], e.target.value)}
+            />
           </div>
           <p className='text-xs text-muted-foreground'>
-            设置后 TMDB 搜索请求将通过指定代理转发。支持 http、https、socks5 协议。
+            设置后 TMDB 搜索请求将通过指定代理转发。支持 http、https、socks5 协议，留空则自动识别。
           </p>
         </CardContent>
       </Card>

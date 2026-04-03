@@ -14,23 +14,28 @@ class ProxySession:
 
     def update_proxy(self, config):
         enabled = config.get('enabled', False)
+        url = config.get('url', '').strip()
+
         self._proxy_config = {}
 
-        if not enabled:
+        if not enabled or not url:
             self._session.proxies.clear()
             return
 
-        http_proxy = config.get('http', '').strip()
-        https_proxy = config.get('https', '').strip()
-        socks5_proxy = config.get('socks5', '').strip()
-
-        if http_proxy:
-            self._proxy_config['http'] = http_proxy
-        if https_proxy:
-            self._proxy_config['https'] = https_proxy
-        if socks5_proxy:
-            self._proxy_config['http'] = socks5_proxy
-            self._proxy_config['https'] = socks5_proxy
+        # Auto-detect protocol by prefix
+        if url.startswith('socks5://') or url.startswith('socks5h://'):
+            self._proxy_config['http'] = url
+            self._proxy_config['https'] = url
+        elif url.startswith('https://'):
+            self._proxy_config['http'] = url
+            self._proxy_config['https'] = url
+        elif url.startswith('http://'):
+            self._proxy_config['http'] = url
+            self._proxy_config['https'] = url
+        else:
+            # No scheme provided, treat as http
+            self._proxy_config['http'] = 'http://' + url
+            self._proxy_config['https'] = 'http://' + url
 
         self._session.proxies.update(self._proxy_config)
 
