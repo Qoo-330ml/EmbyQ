@@ -14,8 +14,6 @@ notifications:
   alert_threshold: 2
   enable_alerts: true
 security:
-  auto_disable: true
-  ipv6_prefix_length: 64
   whitelist:
     - admin
     - user1
@@ -33,10 +31,8 @@ tmdb:
   api_key:
   language: zh-CN
   include_adult: false
-  image_base_url: https://image.tmdb.org/t/p/w342
 guest_request:
   enabled: true
-  daily_limit_per_ip: 10
 web:
   admin_username: admin
   admin_password: admin123

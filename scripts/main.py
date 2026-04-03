@@ -12,6 +12,8 @@ from logger import setup_logging, info, error
 from monitor import EmbyMonitor
 from security import EmbySecurity
 from session_manager import update_proxy_config
+from shadow_library import ShadowLibrary
+from shadow_library_syncer import ShadowLibrarySyncer
 from tmdb_client import TMDBClient
 from web_server import WebServer
 from wish_store import WishStore
@@ -87,8 +89,11 @@ def main() -> int:
     db_manager = DatabaseManager(config['database']['name'])
     wish_store = WishStore(db_manager.db_path)
     emby_client = EmbyClient(server_url=config['emby']['server_url'], api_key=config['emby']['api_key'])
-    security = EmbySecurity(server_url=config['emby']['server_url'], api_key=config['emby']['api_key'])
+    security = EmbySecurity(emby_client)
     tmdb_client = TMDBClient(config.get('tmdb', {}))
+
+    shadow_library = ShadowLibrary(db_manager.db_path)
+    shadow_syncer = ShadowLibrarySyncer(emby_client, shadow_library)
 
     from location_service import LocationService
 
@@ -113,9 +118,11 @@ def main() -> int:
         monitor=monitor,
         tmdb_client=tmdb_client,
         wish_store=wish_store,
+        shadow_library=shadow_library,
+        shadow_syncer=shadow_syncer,
     )
-    web_server.start()
 
+    web_server.start()
     monitor.run()
     return 0
 

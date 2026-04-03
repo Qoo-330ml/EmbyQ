@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 
-export function Dialog({ open, onClose, children }) {
+export function Dialog({ open, onClose, children, size = 'md' }) {
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden'
@@ -17,10 +17,12 @@ export function Dialog({ open, onClose, children }) {
 
   if (!open) return null
 
+  const maxWidthClass = size === 'lg' ? 'max-w-4xl' : size === 'xl' ? 'max-w-6xl' : 'max-w-md'
+
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50' onClick={onClose}>
-      <Card className='w-full max-w-md mx-4' onClick={(e) => e.stopPropagation()}>
-        <CardContent className='p-6'>
+      <Card className={`w-full ${maxWidthClass} mx-4`} onClick={(e) => e.stopPropagation()}>
+        <CardContent className='p-6 relative'>
           {children}
         </CardContent>
       </Card>
@@ -29,7 +31,7 @@ export function Dialog({ open, onClose, children }) {
 }
 
 export function DialogHeader({ children }) {
-  return <div className='mb-4'>{children}</div>
+  return <div className='mb-4 pr-8'>{children}</div>
 }
 
 export function DialogTitle({ children }) {
@@ -42,7 +44,7 @@ export function DialogDescription({ children }) {
 
 export function DialogClose({ onClose }) {
   return (
-    <Button variant='ghost' size='icon' className='absolute right-4 top-4' onClick={onClose}>
+    <Button variant='ghost' size='icon' className='absolute right-2 top-2' onClick={onClose}>
       <X className='h-4 w-4' />
     </Button>
   )

@@ -37,9 +37,7 @@ DEFAULT_CONFIG = {
         'alert_threshold': 2,
     },
     'security': {
-        'auto_disable': True,
         'whitelist': ['admin', 'user1', 'user2'],
-        'ipv6_prefix_length': 64,
     },
     'webhook': {
         'enabled': False,
@@ -59,11 +57,9 @@ DEFAULT_CONFIG = {
         'api_key': '',
         'language': 'zh-CN',
         'include_adult': False,
-        'image_base_url': 'https://image.tmdb.org/t/p/w342',
     },
     'guest_request': {
         'enabled': True,
-        'daily_limit_per_ip': 10,
     },
     'web': {
         'admin_username': 'admin',
@@ -74,6 +70,10 @@ DEFAULT_CONFIG = {
         'http': '',
         'https': '',
         'socks5': '',
+    },
+    'shadow_library': {
+        'enabled': True,
+        'sync_interval': 3600,
     },
 }
 

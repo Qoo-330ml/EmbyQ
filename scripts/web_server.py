@@ -26,6 +26,8 @@ class WebServer:
         monitor=None,
         tmdb_client=None,
         wish_store=None,
+        shadow_library=None,
+        shadow_syncer=None,
     ):
         self.db_manager = db_manager
         self.emby_client = emby_client
@@ -33,6 +35,8 @@ class WebServer:
         self.config = config
         self.tmdb_client = tmdb_client
         self.wish_store = wish_store
+        self.shadow_library = shadow_library
+        self.shadow_syncer = shadow_syncer
 
         if location_service:
             self.location_service = location_service
@@ -173,11 +177,72 @@ class WebServer:
                         if request_record:
                             item['request_id'] = request_record.get('id')
                             item['request_status'] = request_record.get('status')
+                if self.shadow_library and results:
+                    for item in results:
+                        tmdb_id = item.get('tmdb_id')
+                        media_type = item.get('media_type')
+                        shadow_records = self.shadow_library.check_tmdb(tmdb_id, media_type)
+                        if shadow_records:
+                            item['in_library'] = True
+                            if media_type == 'tv':
+                                season_records = self.shadow_library.get_series_seasons_by_tmdb(tmdb_id)
+                                item['library_season_count'] = len(season_records)
+                                try:
+                                    tmdb_result = self.tmdb_client.get_tv_seasons(tmdb_id)
+                                    tmdb_seasons = tmdb_result.get('seasons') or []
+                                    item['tmdb_season_count'] = len(tmdb_seasons)
+                                except Exception:
+                                    item['tmdb_season_count'] = 0
+                        else:
+                            item['in_library'] = False
+                            if media_type == 'tv':
+                                item['library_season_count'] = 0
+                                item['tmdb_season_count'] = 0
                 return jsonify(search_payload)
             except RuntimeError as exc:
                 return jsonify({'error': str(exc)}), 503
             except Exception as exc:
                 return jsonify({'error': f'TMDB 搜索失败: {exc}'}), 500
+
+        @self.app.get('/api/public/tmdb/seasons')
+        def public_tmdb_seasons():
+            if not self._is_guest_request_enabled():
+                return jsonify({'error': '求片功能未启用'}), 403
+            if not self.tmdb_client:
+                return jsonify({'error': 'TMDB 客户端未初始化'}), 503
+
+            tmdb_id = request.args.get('tmdb_id')
+            if not tmdb_id:
+                return jsonify({'error': '缺少 tmdb_id 参数'}), 400
+
+            try:
+                tmdb_id_int = int(tmdb_id)
+            except ValueError:
+                return jsonify({'error': 'tmdb_id 参数错误'}), 400
+
+            try:
+                tmdb_result = self.tmdb_client.get_tv_seasons(tmdb_id_int)
+                tmdb_seasons = tmdb_result.get('seasons') or []
+                shadow_seasons = []
+                if self.shadow_library:
+                    shadow_seasons = self.shadow_library.get_series_seasons_by_tmdb(tmdb_id_int)
+                shadow_season_numbers = {s.get('season_number') for s in shadow_seasons}
+                result_seasons = []
+                for season in tmdb_seasons:
+                    sn = season.get('season_number')
+                    in_library = sn in shadow_season_numbers
+                    result_seasons.append({
+                        **season,
+                        'in_library': in_library,
+                    })
+                return jsonify({
+                    'seasons': result_seasons,
+                    'library_season_count': len(shadow_seasons),
+                })
+            except RuntimeError as exc:
+                return jsonify({'error': str(exc)}), 503
+            except Exception as exc:
+                return jsonify({'error': f'获取季信息失败: {exc}'}), 500
 
         @self.app.get('/api/public/wishes')
         def public_list_wishes():
@@ -206,14 +271,6 @@ class WebServer:
                 return jsonify({'error': '请求参数错误'}), 400
 
             submit_ip = self._get_client_ip()
-            daily_limit = self._get_guest_request_daily_limit()
-            if daily_limit > 0 and submit_ip:
-                recent_count = self.wish_store.count_recent_submissions_by_ip(
-                    submit_ip,
-                    datetime.now() - timedelta(days=1),
-                )
-                if recent_count >= daily_limit:
-                    return jsonify({'error': f'当前 IP 今日提交次数已达上限（{daily_limit}）'}), 429
 
             try:
                 record = self.wish_store.add_request(item, submit_ip=submit_ip)
@@ -489,6 +546,64 @@ class WebServer:
         @login_required
         def admin_logs():
             return jsonify({'logs': get_logs()})
+
+        @self.app.get('/api/admin/shadow/stats')
+        @login_required
+        def admin_shadow_stats():
+            if not self.shadow_library:
+                return jsonify({'error': '影子库未初始化'}), 503
+            return jsonify({'stats': self.shadow_library.get_library_stats()})
+
+        @self.app.post('/api/admin/shadow/sync')
+        @login_required
+        def admin_shadow_sync():
+            if not self.shadow_syncer:
+                return jsonify({'error': '影子库同步器未初始化'}), 503
+            try:
+                result = self.shadow_syncer.sync_all()
+                return jsonify({'success': True, 'result': result})
+            except Exception as exc:
+                return jsonify({'error': f'同步失败: {exc}'}), 500
+
+        @self.app.get('/api/admin/shadow/movies')
+        @login_required
+        def admin_shadow_movies():
+            if not self.shadow_library:
+                return jsonify({'error': '影子库未初始化'}), 503
+            page = request.args.get('page', 1)
+            page_size = request.args.get('page_size', 20)
+            return jsonify(self.shadow_library.get_movies(page=page, page_size=page_size))
+
+        @self.app.get('/api/admin/shadow/series')
+        @login_required
+        def admin_shadow_series():
+            if not self.shadow_library:
+                return jsonify({'error': '影子库未初始化'}), 503
+            page = request.args.get('page', 1)
+            page_size = request.args.get('page_size', 20)
+            return jsonify(self.shadow_library.get_series_list(page=page, page_size=page_size))
+
+        @self.app.get('/api/admin/shadow/series/<emby_id>')
+        @login_required
+        def admin_shadow_series_detail(emby_id):
+            if not self.shadow_library:
+                return jsonify({'error': '影子库未初始化'}), 503
+            detail = self.shadow_library.get_series_detail(emby_id)
+            if not detail:
+                return jsonify({'error': '剧集不存在'}), 404
+            return jsonify(detail)
+
+        @self.app.get('/api/admin/shadow/search')
+        @login_required
+        def admin_shadow_search():
+            if not self.shadow_library:
+                return jsonify({'error': '影子库未初始化'}), 503
+            query = (request.args.get('q') or '').strip()
+            media_type = (request.args.get('type') or '').strip() or None
+            if not query:
+                return jsonify({'error': '请输入搜索关键词'}), 400
+            results = self.shadow_library.search_library(query, media_type)
+            return jsonify({'results': results})
 
         @self.app.get('/api/admin/config')
         @login_required

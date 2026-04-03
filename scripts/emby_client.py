@@ -10,6 +10,9 @@ class EmbyClient:
         self.session = requests.Session()
         self.session.headers.update({'X-Emby-Token': self.api_key})
 
+    def get_session(self):
+        return self.session
+
     def get_user_info(self, user_id):
         try:
             response = self.session.get(
@@ -164,3 +167,102 @@ class EmbyClient:
         except Exception as e:
             print(f"获取服务器信息失败: {str(e)}")
             return {}
+
+    def get_library_views(self):
+        """获取媒体库视图（电影、剧集等）"""
+        try:
+            response = self.session.get(
+                f"{self.server_url}/emby/Views",
+                timeout=10
+            )
+            return response.json().get('Items') or []
+        except Exception as e:
+            print(f"获取媒体库视图失败: {str(e)}")
+            return []
+
+    def get_library_items(self, parent_id=None, include_item_types=None, recursive=True, fields=None):
+        """获取媒体库项目列表
+
+        Args:
+            parent_id: 父级ID（媒体库/文件夹ID）
+            include_item_types: 项目类型，如 'Movie', 'Series', 'Episode'
+            recursive: 是否递归获取
+            fields: 需要返回的字段列表
+        """
+        try:
+            params = {
+                'Recursive': str(recursive).lower()
+            }
+            if parent_id:
+                params['ParentId'] = parent_id
+            if include_item_types:
+                params['IncludeItemTypes'] = include_item_types
+            if fields:
+                params['Fields'] = fields
+
+            response = self.session.get(
+                f"{self.server_url}/emby/Items",
+                params=params,
+                timeout=30
+            )
+            return response.json().get('Items') or []
+        except Exception as e:
+            print(f"获取媒体库项目失败: {str(e)}")
+            return []
+
+    def get_movies(self, fields=None):
+        """获取所有电影 - 只获取基本信息"""
+        fields = fields or 'ProviderIds,ProductionYear,Status'
+        return self.get_library_items(include_item_types='Movie', fields=fields)
+
+    def get_series_list(self, fields=None):
+        """获取所有剧集列表（不包含季和集） - 只获取基本信息"""
+        fields = fields or 'ProviderIds,ProductionYear,Status,RecursiveItemCount'
+        return self.get_library_items(include_item_types='Series', fields=fields)
+
+    def get_series_seasons(self, series_id, fields=None):
+        """获取剧集的季列表 - 只获取基本信息"""
+        try:
+            fields = fields or 'EpisodeCount,PremiereDate'
+            response = self.session.get(
+                f"{self.server_url}/emby/Shows/{series_id}/Seasons",
+                params={'Fields': fields},
+                timeout=15
+            )
+            return response.json().get('Items') or []
+        except Exception as e:
+            print(f"获取季列表失败: {str(e)}")
+            return []
+
+    def get_season_episodes(self, series_id, season_id, fields=None):
+        """获取指定季的所有剧集 - 只获取基本信息"""
+        try:
+            fields = fields or 'PremiereDate,SortOrder'
+            response = self.session.get(
+                f"{self.server_url}/emby/Shows/{series_id}/Episodes",
+                params={
+                    'seasonId': season_id,
+                    'Fields': fields
+                },
+                timeout=15
+            )
+            return response.json().get('Items') or []
+        except Exception as e:
+            print(f"获取剧集列表失败: {str(e)}")
+            return []
+
+    def get_all_series_episodes(self, series_id, fields=None):
+        """递归获取剧集的所有季和集 - 只获取基本信息"""
+        try:
+            fields = fields or 'PremiereDate,SortOrder'
+            response = self.session.get(
+                f"{self.server_url}/emby/Shows/{series_id}/Episodes",
+                params={
+                    'Fields': fields
+                },
+                timeout=30
+            )
+            return response.json().get('Items') or []
+        except Exception as e:
+            print(f"获取全部剧集失败: {str(e)}")
+            return []

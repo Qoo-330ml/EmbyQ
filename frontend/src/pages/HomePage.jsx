@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Film, Heart, LoaderCircle, Play, Search, Tv, X } from 'lucide-react'
+import { Angry, CircleCheckBig, Film, Heart, Loader, LoaderCircle, Play, Search, Tv, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import UserIdentity from '@/components/UserIdentity'
@@ -25,25 +25,138 @@ function normalizeWishItem(item) {
   }
 }
 
-function WishPosterCard({ item, submittingId, onSubmit }) {
+function SeasonDetailModal({ open, onClose, item, loading, seasons, librarySeasonCount, onSubmitSeason }) {
+  const [submittingSeason, setSubmittingSeason] = useState(null)
+  const [wishListSeasons, setWishListSeasons] = useState(new Set())
+
+  const handleSubmitSeason = async (season) => {
+    setSubmittingSeason(season.season_number)
+    try {
+      await onSubmitSeason(season, item)
+      setWishListSeasons((prev) => new Set([...prev, season.season_number]))
+    } finally {
+      setSubmittingSeason(null)
+    }
+  }
+
+  if (!open) return null
+
+  return (
+    <div className='fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4' onClick={onClose}>
+      <Card className='flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden' onClick={(e) => e.stopPropagation()}>
+        <CardHeader className='shrink-0 border-b pb-4'>
+          <div className='flex items-start justify-between gap-4'>
+            <div>
+              <CardTitle>{item?.title || item?.name || '剧集详情'}</CardTitle>
+              <p className='mt-1 text-sm text-muted-foreground'>
+                共 {seasons?.length || 0} 季，Emby库中已有 {librarySeasonCount || 0} 季
+              </p>
+            </div>
+            <Button size='icon' variant='ghost' onClick={onClose} title='关闭'>
+              <X className='h-4 w-4' />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className='min-h-0 flex-1 overflow-y-auto p-6'>
+          {loading ? (
+            <div className='flex items-center justify-center py-8'>
+              <LoaderCircle className='h-6 w-6 animate-spin text-muted-foreground' />
+            </div>
+          ) : (
+            <div className='space-y-2'>
+              {seasons?.map((season) => {
+                const inWishList = wishListSeasons.has(season.season_number)
+                return (
+                <div
+                  key={season.season_number}
+                  className={`flex items-center justify-between rounded-lg border p-3 ${
+                    season.in_library
+                      ? 'border-green-500/30 bg-green-500/5'
+                      : inWishList
+                        ? 'border-yellow-500/30 bg-yellow-500/5'
+                        : 'border-blue-500/30 bg-blue-500/5'
+                  }`}
+                >
+                  <div className='flex items-center gap-3'>
+                    {season.poster_url ? (
+                      <img src={season.poster_url} alt={season.name} className='h-12 w-8 rounded object-cover' />
+                    ) : (
+                      <div className='flex h-12 w-8 items-center justify-center rounded bg-muted text-xs text-muted-foreground'>
+                        无图
+                      </div>
+                    )}
+                    <div>
+                      <div className='font-medium'>{season.name}</div>
+                      <div className='text-xs text-muted-foreground'>
+                        {season.air_date ? season.air_date.slice(0, 4) : '未知年份'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    {season.in_library ? (
+                      <Badge className='bg-green-500 text-white'>已入库</Badge>
+                    ) : inWishList ? (
+                      <Badge className='bg-yellow-500 text-black'>已在清单中</Badge>
+                    ) : (
+                      <Button
+                        size='sm'
+                        className='border-2 border-blue-500 bg-blue-500 text-white hover:bg-blue-600'
+                        onClick={() => handleSubmitSeason(season)}
+                        disabled={submittingSeason === season.season_number}
+                      >
+                        {submittingSeason === season.season_number ? (
+                          <LoaderCircle className='mr-1 h-4 w-4 animate-spin' />
+                        ) : (
+                          <Heart className='mr-1 h-4 w-4' />
+                        )}
+                        加入想看
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function WishPosterCard({ item, submittingId, onSubmit, onShowSeasonDetail }) {
   const key = `${item.media_type}-${item.tmdb_id}`
   const isSubmitting = submittingId === key
   const titleText = item.title || item.original_title || '未命名内容'
   const itemStatus = item.request_status || item.status
-  const isRequested = Boolean(item.requested || itemStatus || item.request_id || item.id)
-  const statusLabel = REQUEST_STATUS_LABELS[itemStatus] || '待处理'
+  const isRequested = Boolean(item.requested || item.request_id || item.id)
+  const isApproved = itemStatus === 'approved'
+
+  const isInLibrary = item.in_library
+  const isPartiallyAvailable = item.media_type === 'tv' && isInLibrary && item.library_season_count > 0 && item.library_season_count < (item.tmdb_season_count || 0)
 
   const handleSubmit = () => {
-    if (isRequested || isSubmitting) return
+    if (isSubmitting) return
+    if (isPartiallyAvailable) {
+      if (onShowSeasonDetail) onShowSeasonDetail(item)
+      return
+    }
+    if (isRequested || isApproved) return
     onSubmit(item)
+  }
+
+  const handleCardClick = () => {
+    if (isPartiallyAvailable) {
+      if (onShowSeasonDetail) onShowSeasonDetail(item)
+    }
   }
 
   return (
     <div
       role='button'
-      tabIndex={isRequested ? -1 : 0}
+      tabIndex={isPartiallyAvailable ? 0 : isRequested || isApproved ? -1 : 0}
       className='flex h-full flex-col overflow-hidden rounded-lg border bg-card text-left transition-transform hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md'
-      onClick={handleSubmit}
+      onClick={handleCardClick}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
@@ -57,12 +170,33 @@ function WishPosterCard({ item, submittingId, onSubmit }) {
         ) : (
           <div className='flex h-full items-center justify-center px-3 text-center text-xs text-muted-foreground'>暂无海报</div>
         )}
-        {isRequested ? (
+        {isPartiallyAvailable ? (
           <div className='absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/45 text-white'>
             <div className='flex h-10 w-10 items-center justify-center rounded-full bg-red-500/90 shadow-lg'>
-              <Heart className='h-5 w-5 fill-current' />
+              <Angry className='h-5 w-5' />
             </div>
-            <span className='rounded-full bg-black/40 px-2.5 py-1 text-xs font-medium'>{statusLabel}</span>
+            <span className='rounded-full bg-black/40 px-2.5 py-1 text-xs font-medium'>部分缺失</span>
+          </div>
+        ) : isApproved ? (
+          <div className='absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/45 text-white'>
+            <div className='flex h-10 w-10 items-center justify-center rounded-full bg-teal-500/90 shadow-lg'>
+              <CircleCheckBig className='h-5 w-5' />
+            </div>
+            <span className='rounded-full bg-black/40 px-2.5 py-1 text-xs font-medium'>已采纳</span>
+          </div>
+        ) : isRequested && !isInLibrary ? (
+          <div className='absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/45 text-white'>
+            <div className='flex h-10 w-10 items-center justify-center rounded-full bg-yellow-500/90 shadow-lg'>
+              <Loader className='h-5 w-5 animate-spin' />
+            </div>
+            <span className='rounded-full bg-black/40 px-2.5 py-1 text-xs font-medium'>已在清单中</span>
+          </div>
+        ) : isInLibrary ? (
+          <div className='absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/45 text-white'>
+            <div className='flex h-10 w-10 items-center justify-center rounded-full bg-green-500/90 shadow-lg'>
+              <CircleCheckBig className='h-5 w-5' />
+            </div>
+            <span className='rounded-full bg-black/40 px-2.5 py-1 text-xs font-medium'>已入库</span>
           </div>
         ) : null}
       </div>
@@ -97,16 +231,48 @@ function WishPosterCard({ item, submittingId, onSubmit }) {
         <Button
           type='button'
           size='sm'
-          variant={isRequested ? 'secondary' : 'default'}
-          className='h-10 w-full shrink-0 rounded-lg px-3 text-sm font-medium shadow-sm'
-          disabled={isSubmitting || isRequested}
+          variant={isPartiallyAvailable ? 'default' : isInLibrary ? 'default' : 'default'}
+          className={`h-10 w-full shrink-0 rounded-lg px-3 text-sm font-medium shadow-sm ${
+            isPartiallyAvailable
+              ? 'border-2 border-red-500 bg-red-500 text-white hover:bg-red-600'
+              : isApproved
+                ? 'border-2 border-teal-500 bg-teal-500 text-white hover:bg-teal-600'
+                : isRequested && !isInLibrary
+                  ? 'border-2 border-yellow-500 bg-yellow-500 text-black hover:bg-yellow-600'
+                  : isInLibrary
+                    ? 'border-2 border-green-500 bg-green-500 text-white hover:bg-green-600'
+                    : 'border-2 border-blue-500 bg-blue-500 text-white hover:bg-blue-600'
+          }`}
+          disabled={isSubmitting}
           onClick={(event) => {
             event.stopPropagation()
             handleSubmit()
           }}
         >
-          {isSubmitting ? <LoaderCircle className='mr-2 h-4 w-4 animate-spin' /> : <Heart className='mr-2 h-4 w-4' />}
-          {isSubmitting ? '提交中...' : isRequested ? '已在清单中' : '加入想看'}
+          {isSubmitting ? (
+            <LoaderCircle className='mr-2 h-4 w-4 animate-spin' />
+          ) : isPartiallyAvailable ? (
+            <Angry className='mr-2 h-4 w-4' />
+          ) : isApproved ? (
+            <CircleCheckBig className='mr-2 h-4 w-4' />
+          ) : isRequested && !isInLibrary ? (
+            <Loader className='mr-2 h-4 w-4 animate-spin' />
+          ) : isInLibrary ? (
+            <CircleCheckBig className='mr-2 h-4 w-4' />
+          ) : (
+            <Heart className='mr-2 h-4 w-4' />
+          )}
+          {isSubmitting
+            ? '提交中...'
+            : isPartiallyAvailable
+              ? '部分缺失'
+              : isApproved
+                ? '已采纳'
+                : isRequested && !isInLibrary
+                  ? '已在清单中'
+                  : isInLibrary
+                    ? '已入库'
+                    : '加入想看'}
         </Button>
       </div>
     </div>
@@ -126,12 +292,13 @@ function WishListModal({
   submittingId,
   onSubmit,
   onLoadMore,
+  onShowSeasonDetail,
 }) {
   if (!open) return null
 
   return (
-    <div className='fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4'>
-      <Card className='flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden'>
+    <div className='fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4' onClick={onClose}>
+      <Card className='flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden' onClick={(e) => e.stopPropagation()}>
         <CardHeader className='shrink-0 border-b pb-4'>
           <div className='flex items-start justify-between gap-4'>
             <div>
@@ -151,7 +318,7 @@ function WishListModal({
           <div className='min-h-0 flex-1 overflow-y-auto pr-1'>
             <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5'>
               {items.map((item) => (
-                <WishPosterCard key={`${item.media_type}-${item.tmdb_id}-${item.id || 'wish'}`} item={item} submittingId={submittingId} onSubmit={onSubmit} />
+                <WishPosterCard key={`${item.media_type}-${item.tmdb_id}-${item.id || 'wish'}`} item={item} submittingId={submittingId} onSubmit={onSubmit} onShowSeasonDetail={onShowSeasonDetail} />
               ))}
             </div>
 
@@ -191,6 +358,10 @@ function RequestModal({ open, onClose }) {
   const [wishPage, setWishPage] = useState(1)
   const [wishTotalPages, setWishTotalPages] = useState(1)
   const [wishTotalResults, setWishTotalResults] = useState(0)
+  const [seasonDetailOpen, setSeasonDetailOpen] = useState(false)
+  const [seasonDetailItem, setSeasonDetailItem] = useState(null)
+  const [seasonDetailLoading, setSeasonDetailLoading] = useState(false)
+  const [seasonDetailSeasons, setSeasonDetailSeasons] = useState([])
 
   useEffect(() => {
     if (!open) {
@@ -212,6 +383,10 @@ function RequestModal({ open, onClose }) {
       setWishPage(1)
       setWishTotalPages(1)
       setWishTotalResults(0)
+      setSeasonDetailOpen(false)
+      setSeasonDetailItem(null)
+      setSeasonDetailLoading(false)
+      setSeasonDetailSeasons([])
     }
   }, [open])
 
@@ -325,6 +500,52 @@ function RequestModal({ open, onClose }) {
     }
   }
 
+  const showSeasonDetail = async (item) => {
+    setSeasonDetailItem(item)
+    setSeasonDetailOpen(true)
+    setSeasonDetailLoading(true)
+    setSeasonDetailSeasons([])
+    try {
+      const data = await apiRequest(`/public/tmdb/seasons?tmdb_id=${item.tmdb_id}`)
+      setSeasonDetailSeasons(data.seasons || [])
+    } catch (err) {
+      setSeasonDetailSeasons([])
+    } finally {
+      setSeasonDetailLoading(false)
+    }
+  }
+
+  const submitSeasonWish = async (season, parentItem) => {
+    const submitKey = `season-${parentItem.tmdb_id}-${season.season_number}`
+    setSubmittingId(submitKey)
+    setError('')
+    setNotice('')
+    try {
+      const item = {
+        tmdb_id: parentItem.tmdb_id,
+        media_type: 'tv',
+        title: `${parentItem.title} - ${season.name}`,
+        original_title: parentItem.original_title,
+        release_date: season.air_date,
+        year: season.air_date ? season.air_date.slice(0, 4) : '',
+        overview: '',
+        poster_path: season.poster_path,
+        poster_url: season.poster_url,
+        backdrop_path: '',
+        backdrop_url: '',
+      }
+      const data = await apiRequest('/public/wishes', {
+        method: 'POST',
+        body: JSON.stringify({ item }),
+      })
+      setNotice(data.message || `${season.name} 已加入想看清单`)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSubmittingId('')
+    }
+  }
+
   const submitWish = async (item) => {
     const submitKey = `${item.media_type}-${item.tmdb_id}`
     setSubmittingId(submitKey)
@@ -382,12 +603,12 @@ function RequestModal({ open, onClose }) {
 
   return (
     <>
-      <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4'>
-        <Card className='flex max-h-[90vh] w-full max-w-7xl flex-col overflow-hidden'>
+      <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4' onClick={onClose}>
+        <Card className='flex max-h-[90vh] w-full max-w-7xl flex-col overflow-hidden' onClick={(e) => e.stopPropagation()}>
           <CardHeader className='shrink-0 border-b pb-4'>
             <div className='flex items-start justify-between gap-4'>
               <div>
-                <CardTitle>游客求片</CardTitle>
+                <CardTitle>用户求片</CardTitle>
                 <p className='mt-1 text-sm text-muted-foreground'>
                   输入关键词后会从 TMDB 搜索电影/电视剧，点击海报即可加入想看清单。
                 </p>
@@ -427,7 +648,7 @@ function RequestModal({ open, onClose }) {
             <div className='min-h-0 flex-1 overflow-y-auto pr-1'>
               <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5'>
                 {results.map((item) => (
-                  <WishPosterCard key={`${item.media_type}-${item.tmdb_id}-search`} item={item} submittingId={submittingId} onSubmit={submitWish} />
+                  <WishPosterCard key={`${item.media_type}-${item.tmdb_id}-search`} item={item} submittingId={submittingId} onSubmit={submitWish} onShowSeasonDetail={showSeasonDetail} />
                 ))}
               </div>
 
@@ -459,6 +680,17 @@ function RequestModal({ open, onClose }) {
         submittingId={submittingId}
         onSubmit={submitWish}
         onLoadMore={loadMoreWishList}
+        onShowSeasonDetail={showSeasonDetail}
+      />
+
+      <SeasonDetailModal
+        open={seasonDetailOpen}
+        onClose={() => setSeasonDetailOpen(false)}
+        item={seasonDetailItem}
+        loading={seasonDetailLoading}
+        seasons={seasonDetailSeasons}
+        librarySeasonCount={seasonDetailItem?.library_season_count}
+        onSubmitSeason={submitSeasonWish}
       />
     </>
   )
@@ -606,7 +838,7 @@ export default function HomePage() {
 
       <RequestModal open={requestOpen} onClose={() => setRequestOpen(false)} />
 
-      <Dialog open={userSearchOpen} onClose={() => setUserSearchOpen(false)}>
+      <Dialog open={userSearchOpen} onClose={() => setUserSearchOpen(false)} size='lg'>
         <DialogClose onClose={() => setUserSearchOpen(false)} />
         <DialogHeader>
           <DialogTitle>用户查询</DialogTitle>

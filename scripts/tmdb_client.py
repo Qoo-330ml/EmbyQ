@@ -115,3 +115,46 @@ class TMDBClient:
         if not path:
             return ''
         return f'{self.image_base_url}{path}'
+
+    def get_tv_seasons(self, tmdb_id):
+        if not self.enabled:
+            raise RuntimeError('TMDB 未启用')
+        if not self.api_key:
+            raise RuntimeError('TMDB API Key 未配置')
+
+        try:
+            response = self.session.get(
+                f'https://api.themoviedb.org/3/tv/{tmdb_id}',
+                params={
+                    'api_key': self.api_key,
+                    'language': self.language,
+                },
+                timeout=15,
+            )
+        except requests_exceptions.Timeout as exc:
+            raise RuntimeError('TMDB 请求超时，请稍后重试') from exc
+        except requests_exceptions.RequestException as exc:
+            raise RuntimeError(f'TMDB 请求失败: {exc}') from exc
+
+        if response.status_code != 200:
+            if response.status_code == 404:
+                return {'seasons': []}
+            if response.status_code == 401:
+                raise RuntimeError('TMDB API Key 无效')
+            raise RuntimeError(f'TMDB 请求失败: HTTP {response.status_code}')
+
+        payload = response.json() or []
+        seasons = payload.get('seasons') or []
+        result = []
+        for season in seasons:
+            season_number = season.get('season_number')
+            if season_number is None or season_number == 0:
+                continue
+            result.append({
+                'season_number': season_number,
+                'name': season.get('name') or f'第 {season_number} 季',
+                'poster_path': season.get('poster_path'),
+                'poster_url': self._build_image_url(season.get('poster_path')),
+                'air_date': season.get('air_date') or '',
+            })
+        return {'seasons': result}

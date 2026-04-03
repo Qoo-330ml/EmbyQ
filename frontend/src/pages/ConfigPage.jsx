@@ -12,6 +12,8 @@ export default function ConfigPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [syncing, setSyncing] = useState(false)
+  const [syncNotice, setSyncNotice] = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -79,6 +81,22 @@ export default function ConfigPage() {
     }
   }
 
+  const onSyncShadow = async () => {
+    setSyncing(true)
+    setSyncNotice('')
+    try {
+      const result = await apiRequest('/admin/shadow/sync', { method: 'POST' })
+      const { movies, series } = result.result || {}
+      setSyncNotice(
+        `同步完成：电影 ${movies?.synced || 0} 部（新增）, 剧集 ${series?.synced || 0} 部（新增）`
+      )
+    } catch (err) {
+      setSyncNotice(`同步失败：${err.message}`)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   if (!config) {
     return <div className='p-8 text-center text-muted-foreground'>加载配置中...</div>
   }
@@ -95,19 +113,19 @@ export default function ConfigPage() {
         </CardHeader>
         <CardContent className='grid gap-4 md:grid-cols-2'>
           <div className='space-y-2'>
-            <label className='text-sm text-muted-foreground'>服务器地址（内网）</label>
+            <label className='text-sm text-muted-foreground'>Emby服务器地址（内网）</label>
             <Input value={config.emby.server_url || ''} onChange={(e) => update(['emby', 'server_url'], e.target.value)} />
           </div>
           <div className='space-y-2'>
-            <label className='text-sm text-muted-foreground'>服务器外网地址</label>
+            <label className='text-sm text-muted-foreground'>Emby服务器外网地址</label>
             <Input value={config.emby.external_url || ''} onChange={(e) => update(['emby', 'external_url'], e.target.value)} />
           </div>
           <div className='space-y-2'>
-            <label className='text-sm text-muted-foreground'>EmbyQ 外网地址</label>
+            <label className='text-sm text-muted-foreground'>EmbyQ外网地址（用于发送邀请链接）</label>
             <Input value={config.service?.external_url || ''} onChange={(e) => update(['service', 'external_url'], e.target.value)} />
           </div>
           <div className='space-y-2'>
-            <label className='text-sm text-muted-foreground'>API Key</label>
+            <label className='text-sm text-muted-foreground'>Emby API Key</label>
             <Input value={config.emby.api_key || ''} onChange={(e) => update(['emby', 'api_key'], e.target.value)} />
           </div>
           <div className='space-y-2'>
@@ -118,27 +136,33 @@ export default function ConfigPage() {
               onChange={(e) => update(['monitor', 'check_interval'], Number(e.target.value || 10))}
             />
           </div>
+          <div className='flex items-end gap-2'>
+            <Button onClick={onSyncShadow} disabled={syncing}>
+              {syncing ? '同步中...' : '同步影子库'}
+            </Button>
+            {syncNotice && <span className='text-sm text-muted-foreground'>{syncNotice}</span>}
+          </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>TMDB 与游客求片</CardTitle>
+          <CardTitle>TMDB搜索</CardTitle>
         </CardHeader>
         <CardContent className='grid gap-4 md:grid-cols-2'>
-          <label className='flex items-center gap-2 text-sm'>
-            <Checkbox
-              checked={Boolean(config.tmdb?.enabled)}
-              onChange={(e) => update(['tmdb', 'enabled'], e.target.checked)}
-            />
-            启用 TMDB 搜索
-          </label>
           <label className='flex items-center gap-2 text-sm'>
             <Checkbox
               checked={Boolean(config.guest_request?.enabled)}
               onChange={(e) => update(['guest_request', 'enabled'], e.target.checked)}
             />
-            启用游客求片
+            启用TMDB搜索
+          </label>
+          <label className='flex items-center gap-2 text-sm'>
+            <Checkbox
+              checked={Boolean(config.tmdb?.include_adult)}
+              onChange={(e) => update(['tmdb', 'include_adult'], e.target.checked)}
+            />
+            搜索时包含成人内容
           </label>
           <div className='space-y-2'>
             <label className='text-sm text-muted-foreground'>TMDB API Key</label>
@@ -148,28 +172,6 @@ export default function ConfigPage() {
             <label className='text-sm text-muted-foreground'>TMDB 语言</label>
             <Input value={config.tmdb?.language || 'zh-CN'} onChange={(e) => update(['tmdb', 'language'], e.target.value)} />
           </div>
-          <div className='space-y-2'>
-            <label className='text-sm text-muted-foreground'>海报基础地址</label>
-            <Input
-              value={config.tmdb?.image_base_url || ''}
-              onChange={(e) => update(['tmdb', 'image_base_url'], e.target.value)}
-            />
-          </div>
-          <div className='space-y-2'>
-            <label className='text-sm text-muted-foreground'>每个 IP 每日求片上限</label>
-            <Input
-              type='number'
-              value={config.guest_request?.daily_limit_per_ip || 10}
-              onChange={(e) => update(['guest_request', 'daily_limit_per_ip'], Number(e.target.value || 0))}
-            />
-          </div>
-          <label className='flex items-center gap-2 text-sm md:col-span-2'>
-            <Checkbox
-              checked={Boolean(config.tmdb?.include_adult)}
-              onChange={(e) => update(['tmdb', 'include_adult'], e.target.checked)}
-            />
-            搜索时包含成人内容
-          </label>
         </CardContent>
       </Card>
 
@@ -215,17 +217,17 @@ export default function ConfigPage() {
             />
           </div>
           <p className='text-xs text-muted-foreground'>
-            设置后 TMDB 搜索请求将通过指定代理转发。支持 http、https、socks5 协议，留空则自动识别。
+            设置后 TMDB 搜索请求将通过指定代理转发。支持 http、https、socks5 协议。
           </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>安全与通知</CardTitle>
+          <CardTitle>自动封禁</CardTitle>
         </CardHeader>
         <CardContent className='space-y-4'>
-          <div className='grid gap-4 md:grid-cols-4'>
+          <div className='grid gap-4 md:grid-cols-2'>
             <div className='space-y-2'>
               <label className='text-sm text-muted-foreground'>告警阈值</label>
               <Input
@@ -234,27 +236,12 @@ export default function ConfigPage() {
                 onChange={(e) => update(['notifications', 'alert_threshold'], Number(e.target.value || 2))}
               />
             </div>
-            <div className='space-y-2'>
-              <label className='text-sm text-muted-foreground'>IPv6 前缀长度</label>
-              <Input
-                type='number'
-                value={config.security?.ipv6_prefix_length || 64}
-                onChange={(e) => update(['security', 'ipv6_prefix_length'], Number(e.target.value || 64))}
-              />
-            </div>
             <label className='flex items-center gap-2 pt-8 text-sm'>
               <Checkbox
                 checked={Boolean(config.notifications.enable_alerts)}
                 onChange={(e) => update(['notifications', 'enable_alerts'], e.target.checked)}
               />
-              启用异常告警
-            </label>
-            <label className='flex items-center gap-2 pt-8 text-sm'>
-              <Checkbox
-                checked={Boolean(config.security.auto_disable)}
-                onChange={(e) => update(['security', 'auto_disable'], e.target.checked)}
-              />
-              自动禁用异常用户
+              启用异常封禁
             </label>
           </div>
 
