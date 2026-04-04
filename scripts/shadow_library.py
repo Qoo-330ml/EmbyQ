@@ -47,10 +47,28 @@ class ShadowLibrary:
     def exists_season(self, emby_series_id, season_number):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
-                "SELECT 1 FROM shadow_library WHERE emby_series_id = ? AND season_number = ?",
+                "SELECT 1 FROM shadow_library WHERE emby_series_id = ? AND season_number = ? AND media_type = 'Season'",
                 (emby_series_id, season_number)
             )
             return cursor.fetchone() is not None
+
+    def get_by_emby_id(self, emby_id):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM shadow_library WHERE emby_id = ?",
+                (emby_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_season_by_slot(self, emby_series_id, season_number):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM shadow_library WHERE emby_series_id = ? AND season_number = ? AND media_type = 'Season'",
+                (emby_series_id, season_number)
+            ).fetchone()
+            return dict(row) if row else None
 
     def get_all_emby_ids(self, media_type=None):
         with sqlite3.connect(self.db_path) as conn:
@@ -129,20 +147,63 @@ class ShadowLibrary:
             ))
             conn.commit()
 
-    def sync_seasons(self, emby_series_id, seasons):
+    def sync_seasons(self, emby_series_id, seasons, current_series_name=''):
         synced = 0
         skipped = 0
         errors = 0
+        current_series_id = str(emby_series_id or '')
+        current_series_name = current_series_name or ''
         for season in seasons:
             try:
+                season_id = str(season.get('Id') or '')
+                season_name = season.get('Name') or ''
                 season_number = season.get('IndexNumber', 0)
-                if self.exists_season(emby_series_id, season_number):
+                season_series_id = str(season.get('SeriesId') or season.get('ParentId') or current_series_id)
+                season_series_name = season.get('SeriesName') or ''
+                existing_by_id = self.get_by_emby_id(season_id) if season_id else None
+                existing_same_slot = self.get_season_by_slot(season_series_id, season_number)
+
+                if not season_id:
+                    logger.warning(
+                        f"跳过无效季记录: 当前剧集={current_series_name or current_series_id}({current_series_id}), 原始季数据={season}"
+                    )
                     skipped += 1
                     continue
-                self._upsert_season(emby_series_id, season)
+
+                if season_series_id != current_series_id:
+                    logger.warning(
+                        "检测到Emby季归属异常: "
+                        f"当前剧集={current_series_name or current_series_id}({current_series_id}) | "
+                        f"返回季={season_name} [season_id={season_id}, season_number={season_number}] | "
+                        f"季自带归属剧集={season_series_name or season_series_id}({season_series_id}) | "
+                        f"已存在同ID记录={existing_by_id}"
+                    )
+
+                if existing_by_id:
+                    skipped += 1
+                    continue
+                if existing_same_slot:
+                    logger.warning(
+                        "检测到Emby季槽位重复: "
+                        f"当前剧集={current_series_name or current_series_id}({current_series_id}) | "
+                        f"返回季={season_name} [season_id={season_id}, season_number={season_number}] | "
+                        f"季自带归属剧集={season_series_name or season_series_id}({season_series_id}) | "
+                        f"已存在同槽位记录={existing_same_slot}"
+                    )
+                    skipped += 1
+                    continue
+
+                self._upsert_season(season_series_id, season)
                 synced += 1
             except Exception as e:
-                logger.error(f"同步季失败: {e}")
+                logger.error(
+                    "同步季失败: "
+                    f"当前剧集={current_series_name or current_series_id}({current_series_id}) | "
+                    f"返回季={season.get('Name')} [season_id={season.get('Id')}, season_number={season.get('IndexNumber', 0)}] | "
+                    f"季自带归属剧集={season.get('SeriesName') or season.get('SeriesId') or season.get('ParentId') or current_series_id}"
+                    f"({season.get('SeriesId') or season.get('ParentId') or current_series_id}) | "
+                    f"错误={e}"
+                )
                 errors += 1
         return {'synced': synced, 'skipped': skipped, 'errors': errors}
 
@@ -157,7 +218,7 @@ class ShadowLibrary:
                 season.get('Name'),
                 'Season',
                 season.get('PremiereDate', '')[:10] if season.get('PremiereDate') else None,
-                emby_series_id,
+                str(emby_series_id or ''),
                 season.get('IndexNumber', 0)
             ))
             conn.commit()

@@ -80,7 +80,7 @@ class ShadowLibrarySyncer:
         if not seasons:
             return {'skipped': 1}
 
-        result = self.shadow_library.sync_seasons(series_id, seasons)
+        result = self.shadow_library.sync_seasons(series_id, seasons, current_series_name=series_name)
         return result
 
     def get_stats(self):
