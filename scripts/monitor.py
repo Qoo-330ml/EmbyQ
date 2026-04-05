@@ -40,18 +40,31 @@ class EmbyMonitor:
         
         # 初始化Webhook通知器
         self.webhook_notifier = None
+        self.update_runtime_config(config)
+
+    def update_runtime_config(self, config):
+        """热更新运行期配置（尤其是 webhook / 安全相关设置）"""
+        self.config = config
+        self.whitelist = [name.strip().lower() for name in config['security']['whitelist'] if name.strip()]
+        self.auto_disable = config['security']['auto_disable']
+        self.alert_threshold = config['notifications']['alert_threshold']
+        self.alerts_enabled = config['notifications']['enable_alerts']
+        self.ipv6_prefix_length = config['security'].get('ipv6_prefix_length', 64)
+
         webhook_config = config.get('webhook', {})
-        if webhook_config.get('enabled', False):
-            try:
-                from webhook_notifier import WebhookNotifier
+        try:
+            if self.webhook_notifier:
+                self.webhook_notifier.update_config(webhook_config)
+            elif webhook_config.get('enabled', False):
                 self.webhook_notifier = WebhookNotifier(webhook_config)
+
+            if self.webhook_notifier and not self.webhook_notifier.is_enabled():
+                logging.info("🔕 Webhook通知未启用")
+            elif self.webhook_notifier:
                 logging.info("🔔 Webhook通知已启用")
-            except Exception as e:
-                logging.error(f"❌ Webhook通知初始化失败: {e}")
-                self.webhook_notifier = None
-        else:
+        except Exception as e:
+            logging.error(f"❌ Webhook通知初始化/更新失败: {e}")
             self.webhook_notifier = None
-            logging.info("🔕 Webhook通知未启用")
 
     def _extract_ip_address(self, remote_endpoint):
         """智能提取IP地址，支持IPv4和IPv6"""
@@ -396,10 +409,10 @@ class EmbyMonitor:
 
     def test_webhook(self):
         """测试Webhook配置"""
-        if not self.webhook_notifier:
+        if not self.webhook_notifier or not self.webhook_notifier.is_enabled():
             logging.warning("⚠️ Webhook未启用，无法测试")
             return False
-        
+
         logging.info("🧪 测试Webhook配置...")
         return self.webhook_notifier.test_webhook()
 

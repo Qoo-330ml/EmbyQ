@@ -703,12 +703,24 @@ class WebServer:
                         self.location_service.update_config(new_use_geocache)
                     if self.tmdb_client:
                         self.tmdb_client.update_config(self.config.get('tmdb', {}))
+                    if self.monitor:
+                        self.monitor.update_runtime_config(self.config)
                     return jsonify({'success': True})
                 return jsonify({'error': '保存配置失败'}), 500
             except yaml.YAMLError as exc:
                 return jsonify({'error': f'Webhook Body YAML 格式错误: {exc}'}), 400
             except Exception as exc:
                 return jsonify({'error': f'保存配置时发生错误: {exc}'}), 500
+
+        @self.app.post('/api/admin/webhook/test')
+        @login_required
+        def admin_test_webhook():
+            if not self.monitor:
+                return jsonify({'error': '监控器未初始化'}), 503
+            ok = self.monitor.test_webhook()
+            if ok:
+                return jsonify({'success': True})
+            return jsonify({'error': 'Webhook 测试发送失败，请检查 URL、超时、Body 与接收端响应'}), 500
 
         @self.app.get('/api/admin/groups')
         @login_required

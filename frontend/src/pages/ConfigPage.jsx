@@ -12,6 +12,8 @@ export default function ConfigPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [testingWebhook, setTestingWebhook] = useState(false)
+  const [webhookNotice, setWebhookNotice] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [syncNotice, setSyncNotice] = useState('')
 
@@ -94,6 +96,31 @@ export default function ConfigPage() {
       setSyncNotice(`同步失败：${err.message}`)
     } finally {
       setSyncing(false)
+    }
+  }
+
+  const onTestWebhook = async () => {
+    setTestingWebhook(true)
+    setWebhookNotice('')
+    setError('')
+
+    const nextConfig = structuredClone(config)
+    nextConfig.security.whitelist = (nextConfig.security.whitelist || [])
+      .map((v) => String(v || '').trim())
+      .filter(Boolean)
+
+    try {
+      await apiRequest('/admin/config', {
+        method: 'PUT',
+        body: JSON.stringify({ config: nextConfig }),
+      })
+      setConfig(nextConfig)
+      await apiRequest('/admin/webhook/test', { method: 'POST' })
+      setWebhookNotice('测试通知已发送')
+    } catch (err) {
+      setWebhookNotice(`测试失败：${err.message}`)
+    } finally {
+      setTestingWebhook(false)
     }
   }
 
@@ -299,7 +326,12 @@ export default function ConfigPage() {
             />
           </div>
           <div className='space-y-2 md:col-span-2'>
-            <label className='text-sm text-muted-foreground'>Webhook Body (YAML 或 JSON)</label>
+            <div className='flex items-center justify-between gap-3'>
+              <label className='text-sm text-muted-foreground'>Webhook Body (YAML 或 JSON)</label>
+              <Button type='button' variant='secondary' onClick={onTestWebhook} disabled={testingWebhook || saving}>
+                {testingWebhook ? '测试中...' : '测试 Webhook'}
+              </Button>
+            </div>
             <Textarea
               className='min-h-48 font-mono'
               value={
@@ -311,6 +343,7 @@ export default function ConfigPage() {
               }
               onChange={(e) => update(['webhook', 'body'], e.target.value)}
             />
+            {webhookNotice ? <p className='text-sm text-muted-foreground'>{webhookNotice}</p> : null}
           </div>
         </CardContent>
       </Card>
