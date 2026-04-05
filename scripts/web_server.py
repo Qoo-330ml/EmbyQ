@@ -478,11 +478,14 @@ class WebServer:
             data = request.get_json(silent=True) or {}
             user_id = data.get('user_id')
             action = data.get('action')
-            username = (data.get('username') or '').strip()
+            request_username = (data.get('username') or '').strip()
             if not user_id or action not in {'ban', 'unban'}:
                 return jsonify({'error': '参数错误'}), 400
 
-            success = self.security_client.disable_user(user_id, username=username) if action == 'ban' else self.security_client.enable_user(user_id, username=username)
+            user_info = self.emby_client.get_user_info(user_id) if self.emby_client else {}
+            resolved_username = (user_info.get('Name') or request_username or user_id).strip()
+
+            success = self.security_client.disable_user(user_id, username=resolved_username) if action == 'ban' else self.security_client.enable_user(user_id, username=resolved_username)
             if not success:
                 return jsonify({'error': f'用户{"封禁" if action == "ban" else "解封"}失败'}), 500
 
@@ -490,8 +493,7 @@ class WebServer:
                 self.monitor.webhook_notifier.send(
                     'user_banned_manual' if action == 'ban' else 'user_unbanned_manual',
                     {
-                        'username': username or user_id,
-                        'user_id': user_id,
+                        'username': resolved_username,
                     },
                 )
 

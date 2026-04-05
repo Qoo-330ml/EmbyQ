@@ -246,11 +246,11 @@ class WebhookNotifier:
             ),
             'user_banned_manual': (
                 'EmbyQ · 用户已手动禁用',
-                '用户：{username}\n用户 ID：{user_id}\n操作：手动禁用',
+                '用户：{username}\n操作：手动禁用',
             ),
             'user_unbanned_manual': (
                 'EmbyQ · 用户已手动启用',
-                '用户：{username}\n用户 ID：{user_id}\n操作：手动启用',
+                '用户：{username}\n操作：手动启用',
             ),
             'guest_request_created': (
                 'EmbyQ · 新的游客求片',
