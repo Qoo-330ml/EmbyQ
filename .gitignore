@@ -3,19 +3,26 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-*.egg-info/
+
+# Virtualenv
 .venv/
+venv/
 
-# Data
-/data/*.db
-/data/*.db-*
-/data/config.yaml
-/data/config.yaml.backup
+# Runtime / temp
+.run/
+*.log
+*.pid
 
-# Frontend
-/frontend/node_modules/
+# App data
+/data/
+
+# Frontend build output
 /frontend/dist/
 
-# OS
+# Node / npm
+frontend/node_modules/
+
+# OS / editor
 .DS_Store
-.venv_local/
+.vscode/
+.idea/

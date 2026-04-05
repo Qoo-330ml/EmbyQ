@@ -155,9 +155,9 @@ export default function LogsPage() {
                   return (
                     <div
                       key={`${lineNumber}-${line}`}
-                      className={`grid grid-cols-[72px_1fr] gap-3 border-b border-white/5 px-3 py-1.5 ${
-                        index % 2 === 0 ? 'bg-white/[0.03]' : 'bg-slate-300/[0.06]'
-                      } ${wrapLines ? 'items-start' : 'items-center'}`}
+                      className={`grid grid-cols-[72px_1fr] gap-3 border-b border-white/5 px-3 py-1.5 transition-colors ${
+                        index % 2 === 0 ? 'bg-white/[0.03]' : 'bg-slate-400/[0.12]'
+                      } hover:bg-sky-400/[0.08] ${wrapLines ? 'items-start' : 'items-center'}`}
                     >
                       <span className='select-none text-right text-[11px] text-slate-500'>{lineNumber}</span>
                       <span

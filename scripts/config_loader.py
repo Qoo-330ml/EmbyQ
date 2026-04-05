@@ -134,13 +134,7 @@ def load_config():
         logger.error('缺失必要配置项: %s', ', '.join(missing))
         raise SystemExit(1)
 
-    logger.info(
-        '配置加载完成: emby=%s, tmdb_enabled=%s, guest_request_enabled=%s, shadow_library_enabled=%s',
-        config.get('emby', {}).get('server_url', ''),
-        config.get('tmdb', {}).get('enabled', False),
-        config.get('guest_request', {}).get('enabled', False),
-        config.get('shadow_library', {}).get('enabled', False),
-    )
+    logger.info('配置加载完成')
 
     return config
 
