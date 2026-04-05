@@ -330,6 +330,21 @@ class WebServer:
                 record = self.wish_store.add_request(item)
                 message = '已加入想看清单' if record.get('created') else '该内容已在求片清单中'
                 status_code = 201 if record.get('created') else 200
+                if record.get('created') and self.monitor and self.monitor.webhook_notifier and self.monitor.webhook_notifier.is_enabled():
+                    self.monitor.webhook_notifier.send(
+                        'guest_request_created',
+                        {
+                            'request_id': record.get('id'),
+                            'tmdb_id': record.get('tmdb_id'),
+                            'media_type': record.get('media_type'),
+                            'season_number': record.get('season_number'),
+                            'title': record.get('title'),
+                            'original_title': record.get('original_title'),
+                            'request_status': record.get('status'),
+                            'created_at': record.get('created_at'),
+                            'source': 'public_request',
+                        },
+                    )
                 logger.info(
                     '公开提交求片完成: title=%s, media_type=%s, tmdb_id=%s, season_number=%s, created=%s, request_id=%s',
                     item.get('title'),
@@ -387,6 +402,19 @@ class WebServer:
                 self.db_manager.consume_invite(code)
             except Exception as exc:
                 return jsonify({'error': f'注册成功但后续处理失败: {exc}'}), 500
+
+            if self.monitor and self.monitor.webhook_notifier and self.monitor.webhook_notifier.is_enabled():
+                self.monitor.webhook_notifier.send(
+                    'invite_registered',
+                    {
+                        'username': username,
+                        'user_id': user_id,
+                        'invite_code': code,
+                        'group_id': invite.get('group_id') or '',
+                        'account_expiry_date': invite.get('account_expiry_date') or '',
+                        'redirect_url': (self.config.get('emby', {}).get('external_url') or '').rstrip('/'),
+                    },
+                )
 
             redirect_url = (self.config.get('emby', {}).get('external_url') or '').rstrip('/')
             return jsonify({'success': True, 'redirect_url': redirect_url})
@@ -628,9 +656,27 @@ class WebServer:
             try:
                 result = self.shadow_syncer.sync_all()
                 logger.warning('影子库同步完成: result=%s', result)
+                if self.monitor and self.monitor.webhook_notifier and self.monitor.webhook_notifier.is_enabled():
+                    self.monitor.webhook_notifier.send(
+                        'shadow_sync_completed',
+                        {
+                            'movies_synced': ((result or {}).get('movies') or {}).get('synced', 0),
+                            'movies_failed': ((result or {}).get('movies') or {}).get('failed', 0),
+                            'series_synced': ((result or {}).get('series') or {}).get('synced', 0),
+                            'series_failed': ((result or {}).get('series') or {}).get('failed', 0),
+                            'result': result,
+                        },
+                    )
                 return jsonify({'success': True, 'result': result})
             except Exception as exc:
                 logger.exception('影子库同步失败: error=%s', exc)
+                if self.monitor and self.monitor.webhook_notifier and self.monitor.webhook_notifier.is_enabled():
+                    self.monitor.webhook_notifier.send(
+                        'shadow_sync_failed',
+                        {
+                            'error': str(exc),
+                        },
+                    )
                 return jsonify({'error': f'同步失败: {exc}'}), 500
 
         @self.app.get('/api/admin/shadow/movies')
